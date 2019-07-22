@@ -41,14 +41,10 @@ parse_requires()
 with open("README.md") as f:
     long_desc = f.read()
 
-
-cmdclass = {"build_ext": build_cpp11_ext}
-cmdclass.update(versioneer.get_cmdclass())
-
 setup(
     name="unumpy",
     version=versioneer.get_version(),
-    cmdclass=cmdclass,
+    cmdclass=versioneer.get_cmdclass(),
     description="Array interface object for Python with pluggable backends and a multiple-dispatch"
     "mechanism for defining down-stream functions",
     url="https://github.com/Quansight-Labs/uarray/",
