@@ -4,12 +4,13 @@
     please look at the documentation for :obj:`uarray`, which explains how to
     do this.
 
-``unumpy`` is meant for two groups of individuals:
+``unumpy`` is meant for three groups of individuals:
 
 * Those who write array-like objects, like developers of Dask, Xnd, PyData/Sparse,
   CuPy, and others.
 * Library authors or programmers that hope to target multiple array backends, listed
   above.
+* Users who wish to target their code to other backends.
 
 For example, the following is currently possible:
 
@@ -71,14 +72,54 @@ PyTorch does not have an exact :obj:`ufunc` equivalent, so we dispatch to actual
 methods using a dictionary lookup. The following
 backends are supported:
 
-* :obj:`numpy_backend.NumPyBackend`
-* :obj:`torch_backend.TorchBackend`
-* :obj:`xnd_backend.XndBackend`
-* :obj:`dask_backend.DaskBackend`
-* :obj:`cupy_backend.CupyBackend`
-* :obj:`sparse_backend.SparseBackend`
+* :obj:`numpy_backend`
+* :obj:`torch_backend`
+* :obj:`xnd_backend`
+* :obj:`dask_backend`
+* :obj:`cupy_backend`
+* :obj:`sparse_backend`
+
+Writing Backends
+----------------
+
+Since :obj:`unumpy` is based on :obj:`uarray`, all overrides are done via the ``__ua_*__``
+protocols. We strongly recommend you read the
+`uarray documentation <https://uarray.readthedocs.io/en/latest>`_ for context.
+
+All functions/methods in :obj:`unumpy` are :obj:`uarray` multimethods. This means
+you can override them using the ``__ua_function__`` protocol.
+
+In addition, :obj:`unumpy` provides :obj:`numpy.ndarray`, :obj:`numpy.ufunc` and
+:obj:`numpy.dtype` as dispatchables that can be checked and converted via the
+``__ua_convert__`` protocol.
+
+Meta-array support
+------------------
+
+If meta-arrays and libraries depend on :obj:`unumpy` instead of NumPy, they can benefit
+from containerization and hold arbitrary arrays; not just :obj:`numpy.ndarray` objects.
+
+Inside their ``__ua_function__`` implementation, they might need to do something like the
+following:
+
+>>> class Backend: pass
+>>> meta_backend = Backend()
+>>> meta_backend.__ua_domain__ = "numpy"
+>>> def ua_func(f, a, kw):
+...     # We do this to avoid infinite recursion
+...     with ua.skip_backend(meta_backend):
+...         # Actual implementation here
+...         pass
+>>> meta_backend.__ua_function__ = ua_func
+
+In this form, one could do something like the following to use the meta-backend:
+
+>>> with ua.set_backend(sp_backend), ua.set_backend(meta_backend):
+...     np.zeros(200)
+
+And it would perform the correct thing.
 """
-from .multimethods import *
+from ._multimethods import *
 
 from ._version import get_versions
 

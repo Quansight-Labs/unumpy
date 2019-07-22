@@ -1,11 +1,12 @@
 import numpy as np
+from ndtypes import ndt
 import xnd
 import gumath.functions as fn
 import gumath as gu
 import uarray as ua
 from uarray import Dispatchable, wrap_single_convertor
-from .multimethods import ufunc, ufunc_list, ndarray
-import unumpy.multimethods as multimethods
+from unumpy import ufunc, ufunc_list, ndarray, dtype
+import unumpy
 import functools
 
 from typing import Dict
@@ -16,8 +17,8 @@ __ua_domain__ = "numpy"
 
 
 _implementations: Dict = {
-    multimethods.ufunc.__call__: gu.gufunc.__call__,
-    multimethods.ufunc.reduce: gu.reduce,
+    unumpy.ufunc.__call__: gu.gufunc.__call__,
+    unumpy.ufunc.reduce: gu.reduce,
 }
 
 
@@ -35,6 +36,9 @@ def __ua_convert__(value, dispatch_type, coerce):
 
     if dispatch_type is ufunc and hasattr(fn, value.name):
         return getattr(fn, value.name)
+
+    if dispatch_type is dtype:
+        return value
 
     return NotImplemented
 

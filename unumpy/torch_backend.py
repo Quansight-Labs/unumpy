@@ -1,7 +1,8 @@
-import unumpy.multimethods as multimethods
-from .multimethods import ufunc, ufunc_list, ndarray
+import unumpy
 import torch
 from uarray import Dispatchable, wrap_single_convertor
+import unumpy
+from unumpy import ufunc, ufunc_list, ndarray
 
 __ua_domain__ = "numpy"
 
@@ -27,10 +28,10 @@ def asarray(a, dtype=None, order=None):
 
 
 _implementations = {
-    multimethods.ufunc.__call__: lambda x, *a, **kw: x(*a, **kw),
-    multimethods.asarray: asarray,
-    multimethods.array: torch.Tensor,
-    multimethods.arange: lambda start, stop, step, **kwargs: torch.arange(
+    unumpy.ufunc.__call__: lambda x, *a, **kw: x(*a, **kw),
+    unumpy.asarray: asarray,
+    unumpy.array: torch.Tensor,
+    unumpy.arange: lambda start, stop, step, **kwargs: torch.arange(
         start, stop, step, **kwargs
     ),
 }
@@ -70,4 +71,4 @@ for ufunc_name in ufunc_list:
         torch_name = ufunc_name
 
     if hasattr(torch, torch_name):
-        _ufunc_mapping[getattr(multimethods, ufunc_name)] = getattr(torch, torch_name)
+        _ufunc_mapping[getattr(unumpy, ufunc_name)] = getattr(torch, torch_name)

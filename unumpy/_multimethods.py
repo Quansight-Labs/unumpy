@@ -8,6 +8,15 @@ def _identity_argreplacer(args, kwargs, arrays):
     return args, kwargs
 
 
+def _dtype_argreplacer(args, kwargs, dispatchables):
+    def replacer(*a, dtype=None, **kw):
+        out_kw = kw.copy()
+        out_kw["dtype"] = dispatchables[0]
+        return a, out_kw
+
+    return replacer(*args, **kwargs)
+
+
 def _self_argreplacer(args, kwargs, dispatchables):
     def self_method(a, *args, **kwargs):
         return dispatchables + args, kwargs
@@ -47,6 +56,10 @@ def _first2argreplacer(args, kwargs, arrays):
 
 
 class ndarray:
+    pass
+
+
+class dtype:
     pass
 
 
@@ -110,6 +123,7 @@ class ufunc:
 
 
 mark_ufunc = mark_as(ufunc)
+mark_dtype = mark_as(dtype)
 
 
 ufunc_list = [
@@ -304,9 +318,9 @@ for ufunc_name in ufunc_list:
     globals()[ufunc_name] = ufunc(ufunc_name, *_args_mapper[ufunc_name])
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(_dtype_argreplacer)
 def arange(start, stop=None, step=None, dtype=None):
-    return ()
+    return (mark_dtype(dtype),)
 
 
 @create_numpy(_identity_argreplacer)

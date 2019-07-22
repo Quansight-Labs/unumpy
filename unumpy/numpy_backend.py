@@ -1,7 +1,7 @@
 import numpy as np
 from uarray import Dispatchable, wrap_single_convertor
-from .multimethods import ufunc, ufunc_list, ndarray
-import unumpy.multimethods as multimethods
+from unumpy import ufunc, ufunc_list, ndarray
+import unumpy
 import functools
 
 from typing import Dict
@@ -12,8 +12,8 @@ __ua_domain__ = "numpy"
 
 
 _implementations: Dict = {
-    multimethods.ufunc.__call__: np.ufunc.__call__,
-    multimethods.ufunc.reduce: np.ufunc.reduce,
+    unumpy.ufunc.__call__: np.ufunc.__call__,
+    unumpy.ufunc.reduce: np.ufunc.reduce,
 }
 
 

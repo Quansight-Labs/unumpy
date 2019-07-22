@@ -1,8 +1,8 @@
 import numpy as np
 import dask.array as da
 from uarray import Dispatchable, wrap_single_convertor
-from .multimethods import ufunc, ufunc_list, ndarray
-import unumpy.multimethods as multimethods
+from unumpy import ufunc, ufunc_list, ndarray
+import unumpy
 import functools
 
 from typing import Dict
@@ -13,8 +13,8 @@ __ua_domain__ = "numpy"
 
 
 _implementations: Dict = {
-    multimethods.ufunc.__call__: np.ufunc.__call__,
-    multimethods.arange: lambda start, stop=None, step=None, **kw: da.arange(
+    unumpy.ufunc.__call__: np.ufunc.__call__,
+    unumpy.arange: lambda start, stop=None, step=None, **kw: da.arange(
         start, stop, step, **kw
     ),
 }
@@ -40,7 +40,7 @@ def __ua_convert__(value, dispatch_type, coerce):
     if dispatch_type is ufunc:
         return getattr(np, value.name)
 
-    return NotImplemented
+    return value
 
 
 def replace_self(func):
