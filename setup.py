@@ -11,9 +11,6 @@ cwd = Path(os.path.dirname(os.path.abspath(__file__)))
 
 
 def open_reqs_file(file, reqs_path=Path(cwd)):
-    with (reqs_path / file).open() as f:
-        reqs = list(f.read().strip().split("\n"))
-
     i = 0
     while i < len(reqs):
         if reqs[i].startswith("-r"):
@@ -45,24 +42,11 @@ with open("README.md") as f:
     long_desc = f.read()
 
 
-class build_cpp11_ext(build_ext):
-    def build_extension(self, ext):
-        cc = self.compiler
-        if cc.compiler_type == "unix":
-            ext.extra_compile_args.append("--std=c++11")
-        build_ext.build_extension(self, ext)
-
-
 cmdclass = {"build_ext": build_cpp11_ext}
 cmdclass.update(versioneer.get_cmdclass())
 
-
-extensions = [
-    Extension("uarray._uarray", sources=["uarray/_uarray_dispatch.cxx"], language="c++")
-]
-
 setup(
-    name="uarray",
+    name="unumpy",
     version=versioneer.get_version(),
     cmdclass=cmdclass,
     description="Array interface object for Python with pluggable backends and a multiple-dispatch"
@@ -72,10 +56,12 @@ setup(
     maintainer_email="habbasi@quansight.com",
     license="BSD 3-Clause License (Revised)",
     keywords="uarray,numpy,scipy,pytorch,cupy,tensorflow",
-    packages=find_packages(include=["uarray", "uarray.*", "unumpy", "unumpy.*"]),
+    packages=find_packages(include=["unumpy", "unumpy.*"]),
     long_description=long_desc,
     long_description_content_type="text/markdown",
-    install_requires=reqs,
+    install_requires=[
+        "uarray @ git+ssh://git@github.com/Quansight-Labs/uarray@master#egg=uarray"
+    ],
     extras_require=extras_require,
     zip_safe=False,
     classifiers=[
@@ -92,10 +78,9 @@ setup(
         "Intended Audience :: Science/Research",
     ],
     project_urls={
-        # 'Documentation': 'https://uarray.readthedocs.io/',
+        "Documentation": "https://unumpy.readthedocs.io/",
         "Source": "https://github.com/Quansight-Labs/uarray/",
         "Tracker": "https://github.com/Quansight-Labs/uarray/issues",
     },
     python_requires=">=3.5, <4",
-    ext_modules=extensions,
 )

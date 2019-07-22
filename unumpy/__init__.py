@@ -79,3 +79,8 @@ backends are supported:
 * :obj:`sparse_backend.SparseBackend`
 """
 from .multimethods import *
+
+from ._version import get_versions
+
+__version__ = get_versions()["version"]
+del get_versions

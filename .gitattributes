@@ -1,1 +1,2 @@
 uarray/_version.py export-subst
+unumpy/_version.py export-subst

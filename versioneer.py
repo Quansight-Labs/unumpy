@@ -287,7 +287,6 @@ import os
 import re
 import subprocess
 import sys
-from typing import Dict
 
 
 class VersioneerConfig:
@@ -372,7 +371,7 @@ class NotThisMethod(Exception):
 
 
 # these dictionaries contain VCS-specific tools
-LONG_VERSION_PY: Dict[str, str] = {}
+LONG_VERSION_PY = {}
 HANDLERS = {}
 
 

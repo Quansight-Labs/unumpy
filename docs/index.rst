@@ -92,8 +92,6 @@ Choose the documentation page relevant to you:
 
     glossary
 
-    generated/uarray
-
     generated/unumpy
 
 
