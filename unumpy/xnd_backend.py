@@ -78,14 +78,15 @@ def convert_out(x, coerce):
 
 
 def convert(x, coerce):
-    if isinstance(x, np.ndarray):
-        return xnd.array.from_buffer(x)
-    elif isinstance(x, np.generic):
-        try:
-            return xnd.array.from_buffer(memoryview(x))
-        except TypeError:
-            return NotImplemented
-    else:
-        if not coerce:
-            return value
+    if isinstance(x, xnd.array):
+        return x
+
+    try:
+        return xnd.array.from_buffer(memoryview(x))
+    except TypeError:
+        pass
+
+    if coerce:
         return xnd.array(x)
+
+    return NotImplemented

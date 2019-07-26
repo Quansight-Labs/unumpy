@@ -1,5 +1,6 @@
 set -ex
 
 conda install jupyterlab jupyterlab_launcher
+pip install git+https://github.com/Quansight-Labs/uarray.git
 pip install --no-deps -e .
 jupyter lab clean
