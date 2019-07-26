@@ -29,9 +29,6 @@ def parse_requires():
     reqs_path = cwd / "requirements"
     reqs.extend(open_reqs_file("requirements.txt"))
 
-    if sys.version_info < (3, 7):
-        reqs.append("contextvars")
-
     for f in reqs_path.iterdir():
         extras_require[f.stem] = open_reqs_file(f.parts[-1], reqs_path=reqs_path)
 
@@ -56,7 +53,7 @@ setup(
     long_description=long_desc,
     long_description_content_type="text/markdown",
     install_requires=[
-        "uarray @ git+https://github.com/Quansight-Labs/uarray@master#egg=uarray"
+        "uarray >= 0.5"
     ],
     extras_require=extras_require,
     zip_safe=False,
