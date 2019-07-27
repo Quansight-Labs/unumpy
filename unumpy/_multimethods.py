@@ -319,6 +319,11 @@ for ufunc_name in ufunc_list:
 
 
 @create_numpy(_dtype_argreplacer)
+def full(shape, fill_value, dtype=None, order="C"):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_dtype_argreplacer)
 def arange(start, stop=None, step=None, dtype=None):
     return (mark_dtype(dtype),)
 
@@ -328,12 +333,18 @@ def array(object, dtype=None, copy=True, order="K", subok=False, ndmin=0):
     return ()
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(
+    _identity_argreplacer,
+    default=lambda shape, dtype, order="C": full(shape, 0, dtype, order),
+)
 def zeros(shape, dtype=float, order="C"):
     return ()
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(
+    _identity_argreplacer,
+    default=lambda shape, dtype, order="C": full(shape, 1, dtype, order),
+)
 def ones(shape, dtype=float, order="C"):
     return ()
 
