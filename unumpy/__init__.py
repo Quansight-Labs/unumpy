@@ -17,7 +17,7 @@ For example, the following is currently possible:
 >>> import uarray as ua
 >>> import unumpy as np
 >>> import unumpy.dask_backend as dask_backend
->>> import unumpy.sparse_backend as sp_backend
+>>> import unumpy.sparse_backend as sparse_backend
 >>> import sparse, dask.array as da
 >>> def main():
 ...     x = np.zeros(5)
@@ -25,7 +25,7 @@ For example, the following is currently possible:
 >>> with ua.set_backend(dask_backend):
 ...     isinstance(main(), da.core.Array)
 True
->>> with ua.set_backend(sp_backend):
+>>> with ua.set_backend(sparse_backend):
 ...     isinstance(main(), sparse.SparseArray)
 True
 
@@ -40,7 +40,7 @@ Although it currently provides a number of backends, the aspiration is that,
 with time, these back-ends will move into the respective libraries and it will be possible
 to use the library modules directly as backends.
 
-Note that currently, only coverage is very incomplete. However, we have attempted
+Note that currently, our coverage is very incomplete. However, we have attempted
 to provide at least one of each kind of object in ``unumpy`` for
 reference. There are :obj:`ufunc` s and :obj:`ndarray` s,  which are classes,
 methods on :obj:`ufunc` such as :obj:`__call__ <ufunc.__call__>`, and
@@ -89,12 +89,19 @@ protocols. We strongly recommend you read the
 All functions/methods in :obj:`unumpy` are :obj:`uarray` multimethods. This means
 you can override them using the ``__ua_function__`` protocol.
 
-In addition, :obj:`unumpy` provides :obj:`numpy.ndarray`, :obj:`numpy.ufunc` and
-:obj:`numpy.dtype` as dispatchables that can be checked and converted via the
-``__ua_convert__`` protocol.
+In addition, :obj:`unumpy` allows dispatch on :obj:`numpy.ndarray`,
+:obj:`numpy.ufunc` and :obj:`numpy.dtype` via the ``__ua_convert__`` protocol.
+
+Dispatching on objects means one can intercept these, convert to an equivalent
+native format, or dispatch on their methods, including ``__call__``.
+
+We suggest you browse the source for example backends.
 
 Meta-array support
 ------------------
+
+Meta-arrays are arrays that can hold other arrays, such as Dask arrays and XArray
+datasets.
 
 If meta-arrays and libraries depend on :obj:`unumpy` instead of NumPy, they can benefit
 from containerization and hold arbitrary arrays; not just :obj:`numpy.ndarray` objects.
@@ -114,10 +121,12 @@ following:
 
 In this form, one could do something like the following to use the meta-backend:
 
->>> with ua.set_backend(sp_backend), ua.set_backend(meta_backend):
-...     np.zeros(200)
-
-And it would perform the correct thing.
+>>> with ua.set_backend(sparse_backend), ua.set_backend(dask_backend):
+...     x = np.zeros((2000, 2000))
+...     isinstance(x, da.Array)
+...     isinstance(x.compute(), sparse.SparseArray)
+True
+True
 """
 from ._multimethods import *
 
