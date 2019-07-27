@@ -97,8 +97,30 @@ native format, or dispatch on their methods, including ``__call__``.
 
 We suggest you browse the source for example backends.
 
+Differences between overriding :obj:`numpy.ufunc` objects and other multimethods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Of note here is that there are certain callable objects within NumPy, most
+prominently :obj:`numpy.ufunc` objects, that are not typical functions/methods,
+and so cannot be directly overridden, the key word here being *directly*.
+
+In Python, when a method is called, i.e. ``x.method(*a, **kw)`` it is the same
+as writing ``type(x).method(x, *a, **kw)`` assuming that ``method`` was a regular
+method defined on the type. This allows some very interesting things to happen.
+
+For instance, if we make ``method`` a multimethod, it allows us to override
+methods, provided we know that the first argument passed in will be ``x``.
+
+One other thing that is possible (and done in :obj:`unumpy`) is to override the
+``__call__`` method on a callable object. This is, in fact, exactly how to override
+a :obj:`ufunc`.
+
+Other interesting things that can be done (but as of now, are not) are to replace
+:obj:`ufunc` objects entirely by native equivalents overriding the ``__get__`` method.
+This technique can also be applied to ``dtype`` objects.
+
 Meta-array support
-------------------
+^^^^^^^^^^^^^^^^^^
 
 Meta-arrays are arrays that can hold other arrays, such as Dask arrays and XArray
 datasets.

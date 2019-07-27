@@ -29,14 +29,8 @@ and the older ``__array_ufunc__`` protocol defined in `NEP-13 <https://www.numpy
 :obj:`unumpy` provides an an alternate framework based on :obj:`uarray`, bypassing
 the ``__array_function__`` and ``__array_ufunc__`` protocols entirely. It
 provides a clear separation of concerns. It defines callables which can be overridden,
-and expresses everything else in terms of these callables. See the :obj:`uarray` documentation
-for more details.
-
-For example, you can override ``__call__`` on a ``ufunc`` to override it. You can also override
-its methods, ``reduce``, and so on.
-
-Theoretically, you could convert a ``ufunc`` by overriding ``__get__``, but there's also a dedicated
-protocol for this.
+and expresses everything else in terms of these callables. See the :obj:`uarray`
+documentation for more details.
 
 
 .. toctree::
