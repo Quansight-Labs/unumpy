@@ -13,6 +13,8 @@ import unumpy.xnd_backend as XndBackend
 import unumpy.dask_backend as DaskBackend
 import unumpy.sparse_backend as SparseBackend
 
+ua.set_global_backend(NumpyBackend)
+
 LIST_BACKENDS = [
     (NumpyBackend, (onp.ndarray, onp.generic)),
     (XndBackend, xnd.xnd),
@@ -158,3 +160,24 @@ def test_multiple_output(backend, method, args, kwargs):
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     assert all(isinstance(arr, types) for arr in ret)
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
+        (np.zeros, ((1, 2, 3),), {}),
+        (np.ones, ((1, 2, 3),), {}),
+        (np.full, ((1, 2, 3), 1.3), {}),
+    ],
+)
+def test_array_creation(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method(*args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    assert isinstance(ret, types)
