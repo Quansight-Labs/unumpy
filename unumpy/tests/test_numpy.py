@@ -18,8 +18,8 @@ ua.set_global_backend(NumpyBackend)
 LIST_BACKENDS = [
     (NumpyBackend, (onp.ndarray, onp.generic)),
     (XndBackend, xnd.xnd),
-    (DaskBackend, (da.core.Array, onp.generic)),
-    (SparseBackend, (sparse.SparseArray, onp.generic)),
+    (DaskBackend, (da.Array, onp.generic)),
+    (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
     pytest.param(
         (TorchBackend, torch.Tensor),
         marks=pytest.mark.xfail(reason="PyTorch not fully NumPy compatible."),
@@ -133,6 +133,11 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.sort_complex, ([3.0 + 1.0j, 1.0 - 1.0j, 2.0 - 3.0j, 4 - 3.0j],), {}),
         (np.partition, ([3, 1, 2, 4], 2), {}),
         (np.argpartition, ([3, 1, 2, 4], 2), {}),
+        (np.transpose, ([[3, 1, 2, 4]],), {}),
+        (np.argwhere, ([[3, 1, 2, 4]],), {}),
+        (np.ravel, ([[3, 1, 2, 4]],), {}),
+        (np.flatnonzero, ([[3, 1, 2, 4]],), {}),
+        (np.where, ([[True, False, True, False]], [[1]], [[2]]), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -145,11 +150,17 @@ def test_functions_coerce(backend, method, args, kwargs):
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
+    print(type(ret))
     assert isinstance(ret, types)
 
 
 @pytest.mark.parametrize(
-    "method, args, kwargs", [(np.broadcast_arrays, ([1, 2], [[3, 4]]), {})]
+    "method, args, kwargs",
+    [
+        (np.broadcast_arrays, ([1, 2], [[3, 4]]), {}),
+        (np.nonzero, ([3, 1, 2, 4],), {}),
+        (np.where, ([[3, 1, 2, 4]],), {}),
+    ],
 )
 def test_multiple_output(backend, method, args, kwargs):
     backend, types = backend
