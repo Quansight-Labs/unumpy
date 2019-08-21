@@ -32,16 +32,9 @@ try:
     LIST_BACKENDS.append((XndBackend, xnd.xnd))
     FULLY_TESTED_BACKENDS.append(XndBackend)
 except ImportError:
-
-    class XndBackend:
-        pass
-
-    class xnd:
-        pass
-
     LIST_BACKENDS.append(
         pytest.param(
-            (XndBackend, xnd), marks=pytest.mark.skip(reason="xnd is not importable")
+            (None, None), marks=pytest.mark.skip(reason="xnd is not importable")
         )
     )
 
@@ -51,16 +44,9 @@ try:
 
     LIST_BACKENDS.append(pytest.param((CupyBackend, (cp.ndarray, cp.generic))))
 except ImportError:
-
-    class CupyBackend:
-        pass
-
-    class cupy:
-        pass
-
     LIST_BACKENDS.append(
         pytest.param(
-            (CupyBackend, cupy), marks=pytest.mark.skip(reason="cupy is not importable")
+            (None, None), marks=pytest.mark.skip(reason="cupy is not importable")
         )
     )
 
