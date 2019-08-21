@@ -403,10 +403,22 @@ def argmin(a, axis=None, out=None):
     return (a, out)
 
 
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nanargmin(a, axis=None):
+    return (a,)
+
+
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def argmax(a, axis=None, out=None):
     return (a, out)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nanargmax(a, axis=None):
+    return (a,)
 
 
 @create_numpy(_reduce_argreplacer)

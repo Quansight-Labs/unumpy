@@ -106,6 +106,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.max, ([1, 3, 2],), {}),
         (np.argmin, ([1, 3, 2],), {}),
         (np.argmax, ([1, 3, 2],), {}),
+        (np.nanargmin, ([1, 3, 2],), {}),
+        (np.nanargmax, ([1, 3, 2],), {}),
         (np.nanmin, ([1, 3, 2],), {}),
         (np.nanmax, ([1, 3, 2],), {}),
         (np.std, ([1, 3, 2],), {}),
