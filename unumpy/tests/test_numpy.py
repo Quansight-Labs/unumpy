@@ -3,13 +3,11 @@ import uarray as ua
 import unumpy as np
 import numpy as onp
 import torch
-import xnd
 import dask.array as da
 import sparse
 import unumpy.numpy_backend as NumpyBackend
 
 import unumpy.torch_backend as TorchBackend
-import unumpy.xnd_backend as XndBackend
 import unumpy.dask_backend as DaskBackend
 import unumpy.sparse_backend as SparseBackend
 
@@ -17,7 +15,6 @@ ua.set_global_backend(NumpyBackend)
 
 LIST_BACKENDS = [
     (NumpyBackend, (onp.ndarray, onp.generic)),
-    (XndBackend, xnd.xnd),
     (DaskBackend, (da.Array, onp.generic)),
     (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
     pytest.param(
@@ -26,16 +23,33 @@ LIST_BACKENDS = [
     ),
 ]
 
+FULLY_TESTED_BACKENDS = [NumpyBackend, DaskBackend]
+
+try:
+    import unumpy.xnd_backend as XndBackend
+    import xnd
+
+    LIST_BACKENDS.append((XndBackend, xnd.xnd))
+    FULLY_TESTED_BACKENDS.append(XndBackend)
+except ImportError:
+    LIST_BACKENDS.append(
+        pytest.param(
+            (None, None), marks=pytest.mark.skip(reason="xnd is not importable")
+        )
+    )
+
 try:
     import unumpy.cupy_backend as CupyBackend
     import cupy as cp
 
     LIST_BACKENDS.append(pytest.param((CupyBackend, (cp.ndarray, cp.generic))))
 except ImportError:
-    pass
+    LIST_BACKENDS.append(
+        pytest.param(
+            (None, None), marks=pytest.mark.skip(reason="cupy is not importable")
+        )
+    )
 
-
-FULLY_TESTED_BACKENDS = (NumpyBackend, XndBackend, DaskBackend)
 
 EXCEPTIONS = {
     (DaskBackend, np.in1d),
