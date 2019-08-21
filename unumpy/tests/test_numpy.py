@@ -51,7 +51,18 @@ try:
 
     LIST_BACKENDS.append(pytest.param((CupyBackend, (cp.ndarray, cp.generic))))
 except ImportError:
-    pass
+
+    class CupyBackend:
+        pass
+
+    class cupy:
+        pass
+
+    LIST_BACKENDS.append(
+        pytest.param(
+            (CupyBackend, cupy), marks=pytest.mark.skip(reason="cupy is not importable")
+        )
+    )
 
 
 EXCEPTIONS = {
