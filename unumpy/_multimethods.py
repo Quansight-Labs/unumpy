@@ -49,8 +49,11 @@ def _reduce_argreplacer(args, kwargs, arrays):
 
 
 def _first2argreplacer(args, kwargs, arrays):
-    def func(a, b, **kwargs):
-        return arrays, kwargs
+    def func(a, b, **kw):
+        kw_out = kw.copy()
+        if "out" in kw:
+            kw_out["out"] = arrays[2]
+        return arrays[:2], kw_out
 
     return func(*args, **kwargs)
 
@@ -648,14 +651,14 @@ def flatnonzero(a):
     return (a,)
 
 
-def where_def(condition, x=None, y=None):
+def _where_def(condition, x=None, y=None):
     if x is None and y is None:
         return nonzero(condition)
 
     return NotImplemented
 
 
-def where_replacer(a, kw, d):
+def _where_replacer(a, kw, d):
     def where_rd(condition, x=None, y=None):
         if d[1] is not None or d[2] is not None:
             return d, {}
@@ -664,10 +667,37 @@ def where_replacer(a, kw, d):
     return where_rd(*a, **kw)
 
 
-@create_numpy(where_replacer, default=where_def)
+@create_numpy(_where_replacer, default=_where_def)
 @all_of_type(ndarray)
 def where(condition, x=None, y=None):
     return (condition, x, y)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def pad(array, pad_width, mode, **kwargs):
+    return (array,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def searchsorted(a, v, side="left", sorter=None):
+    return (a,)
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def compress(condition, a, axis=None, out=None):
+    return (condition, a, out)
+
+
+@create_numpy(
+    _first2argreplacer,
+    default=lambda condition, arr: compress(ravel(condition), ravel(arr)),
+)
+@all_of_type(ndarray)
+def extract(condition, arr):
+    return (condition, arr)
 
 
 del ufunc_name

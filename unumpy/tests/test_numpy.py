@@ -50,6 +50,7 @@ EXCEPTIONS = {
     (DaskBackend, np.argpartition),
     (DaskBackend, np.sort_complex),
     (DaskBackend, np.msort),
+    (DaskBackend, np.searchsorted),
 }
 
 
@@ -138,6 +139,10 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.ravel, ([[3, 1, 2, 4]],), {}),
         (np.flatnonzero, ([[3, 1, 2, 4]],), {}),
         (np.where, ([[True, False, True, False]], [[1]], [[2]]), {}),
+        (np.pad, ([1, 2, 3, 4, 5], (2, 3), "constant"), dict(constant_values=(4, 6))),
+        (np.searchsorted, ([1, 2, 3, 4, 5], 2), {}),
+        (np.compress, ([True, False, True, False], [0, 1, 2, 3]), {}),
+        (np.extract, ([True, False, True, False], [0, 1, 2, 3]), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
