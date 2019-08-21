@@ -55,6 +55,22 @@ def _first2argreplacer(args, kwargs, arrays):
     return func(*args, **kwargs)
 
 
+def getattr_impl(attr):
+    def func(a):
+        if hasattr(a, attr):
+            return getattr(a, attr)
+
+        return NotImplemented
+
+
+def method_impl(method):
+    def func(self, *a, **kw):
+        if hasattr(a, method):
+            return getattr(a, method)(*a, **kw)
+
+        return NotImplemented
+
+
 class ndarray:
     pass
 
@@ -403,10 +419,22 @@ def argmin(a, axis=None, out=None):
     return (a, out)
 
 
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nanargmin(a, axis=None):
+    return (a,)
+
+
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def argmax(a, axis=None, out=None):
     return (a, out)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nanargmax(a, axis=None):
+    return (a,)
 
 
 @create_numpy(_reduce_argreplacer)
@@ -588,6 +616,58 @@ def partition(a, kth, axis=-1, kind="introselect", order=None):
 @all_of_type(ndarray)
 def argpartition(a, kth, axis=-1, kind="introselect", order=None):
     return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nonzero(a):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer, default=method_impl("transpose"))
+@all_of_type(ndarray)
+def transpose(a, axes=None):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer, default=lambda a: transpose(nonzero(a)))
+@all_of_type(ndarray)
+def argwhere(a):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer, default=method_impl("ravel"))
+@all_of_type(ndarray)
+def ravel(a):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer, default=lambda a: nonzero(ravel(a))[0])
+@all_of_type(ndarray)
+def flatnonzero(a):
+    return (a,)
+
+
+def where_def(condition, x=None, y=None):
+    if x is None and y is None:
+        return nonzero(condition)
+
+    return NotImplemented
+
+
+def where_replacer(a, kw, d):
+    def where_rd(condition, x=None, y=None):
+        if d[1] is not None or d[2] is not None:
+            return d, {}
+        return (d[0],), {}
+
+    return where_rd(*a, **kw)
+
+
+@create_numpy(where_replacer, default=where_def)
+@all_of_type(ndarray)
+def where(condition, x=None, y=None):
+    return (condition, x, y)
 
 
 del ufunc_name
