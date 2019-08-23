@@ -45,16 +45,16 @@ def wrap_uniform_create(func):
                 l -= s
 
         name = func.__name__ + "-" + hex(random.randrange(2 ** 64))
-
         dsk = {}
         with skip_backend(sys.modules[__name__]):
             for chunk_id in itertools.product(*map(lambda x: range(len(x)), chunks)):
                 shape = tuple(chunks[i][j] for i, j in enumerate(chunk_id))
                 dsk[(name,) + chunk_id] = func(shape, *args, **kwargs)
 
-            dtype = str(func((), *args, **kwargs).dtype)
+            meta = func(tuple(0 for _ in shape), *args, **kwargs)
+            dtype = str(meta.dtype)
 
-        return da.Array(dsk, name, chunks, dtype)
+        return da.Array(dsk, name, chunks, dtype=dtype, meta=meta)
 
     return wrapped
 
