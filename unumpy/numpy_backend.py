@@ -14,6 +14,9 @@ __ua_domain__ = "numpy"
 _implementations: Dict = {
     unumpy.ufunc.__call__: np.ufunc.__call__,
     unumpy.ufunc.reduce: np.ufunc.reduce,
+    unumpy.count_nonzero: lambda a, axis=None: np.asarray(np.count_nonzero(a, axis))[
+        ()
+    ],
 }
 
 

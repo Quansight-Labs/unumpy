@@ -700,4 +700,12 @@ def extract(condition, arr):
     return (condition, arr)
 
 
+@create_numpy(
+    _self_argreplacer, default=lambda a, axis=None: sum(a.astype("bool"), axis=axis)
+)
+@all_of_type(ndarray)
+def count_nonzero(a, axis=None):
+    return (a,)
+
+
 del ufunc_name
