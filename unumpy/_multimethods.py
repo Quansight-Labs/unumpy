@@ -708,4 +708,21 @@ def count_nonzero(a, axis=None):
     return (a,)
 
 
+class errstate:
+    @create_numpy(_identity_argreplacer)
+    def __new__(cls, **kwargs):
+        return ()
+
+    def __init__(cls, self):
+        pass
+
+    @create_numpy(_identity_argreplacer)
+    def __enter__(self):
+        return ()
+
+    @create_numpy(_identity_argreplacer)
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        return ()
+
+
 del ufunc_name
