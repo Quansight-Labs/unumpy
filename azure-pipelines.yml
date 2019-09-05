@@ -24,7 +24,7 @@ jobs:
     inputs:
       codeCoverageTool: Cobertura
       summaryFileLocation: "$(System.DefaultWorkingDirectory)/**/coverage.xml"
-      reportDirectory: "$(System.DefaultWorkingDirectory)/**/htmlcov"
+
 - job: Docs
   pool:
     vmImage: 'ubuntu-16.04'
