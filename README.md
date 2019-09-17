@@ -4,7 +4,7 @@
 
 <img src="docs/logo.png" style="width: 20em; text-align: center;" alt="uarray logo">
 
-- [Documentation](https://unumpy.readthedocs.io/en/latest/)
+- [Documentation](https://unumpy.uarray.org/en/latest/)
 - [Road Map](https://github.com/orgs/Quansight-Labs/projects/1)
 
 ## Contributing
