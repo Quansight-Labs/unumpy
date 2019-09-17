@@ -74,7 +74,7 @@ setup(
         "Intended Audience :: Science/Research",
     ],
     project_urls={
-        "Documentation": "https://unumpy.readthedocs.io/",
+        "Documentation": "https://unumpy.uarray.org/",
         "Source": "https://github.com/Quansight-Labs/uarray/",
         "Tracker": "https://github.com/Quansight-Labs/uarray/issues",
     },
