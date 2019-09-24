@@ -280,7 +280,7 @@ from __future__ import print_function
 try:
     import configparser
 except ImportError:
-    import ConfigParser as configparser
+    import ConfigParser as configparser  # type: ignore
 import errno
 import json
 import os
@@ -372,7 +372,7 @@ class NotThisMethod(Exception):
 
 # these dictionaries contain VCS-specific tools
 LONG_VERSION_PY = {}
-HANDLERS = {}
+HANDLERS = {}  # type: ignore
 
 
 def register_vcs_handler(vcs, method):  # decorator
