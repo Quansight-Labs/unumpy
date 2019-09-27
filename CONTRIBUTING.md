@@ -12,18 +12,20 @@ git clone https://github.com/<your-github-username>/unumpy
 
 ## Install
 
+Note that unumpy supports Python versions >= 3.5. If you're running `conda` and would prefer to have dependencies
+pulled from there, use
+
+```
+conda env create -f .conda/environment.yml
+conda activate uarray
+```
+
 `unumpy` and all development dependencies can be installed via:
 
 ```
 pip install -e ".[all]"
 ```
 
-Note that unumpy supports Python versions >= 3.5. If you're running `conda` and would prefer to have dependencies
-pulled from there, use
-
-```
-conda env create -f .meta/environment.yml
-```
 
 This will create an environment named `uarray` which you can use for development.
 
