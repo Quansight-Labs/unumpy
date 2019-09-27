@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.build_ext import build_ext
+from setuptools import setup, find_packages
 import versioneer
 from pathlib import Path
 import sys
@@ -22,7 +21,7 @@ def open_reqs_file(file, reqs_path=Path(cwd)):
 
 
 extras_require = {}
-reqs = []
+reqs = []  # type: ignore
 
 
 def parse_requires():

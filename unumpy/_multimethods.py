@@ -1,5 +1,5 @@
 import functools
-from uarray import create_multimethod, mark_as, all_of_type
+from uarray import create_multimethod, mark_as, all_of_type, Dispatchable
 
 create_numpy = functools.partial(create_multimethod, domain="numpy")
 
@@ -74,8 +74,64 @@ def method_impl(method):
         return NotImplemented
 
 
+def _ufunc_argreplacer(args, kwargs, arrays):
+    self = args[0]
+    args = args[1:]
+    in_arrays = arrays[1 : self.nin + 1]
+    out_arrays = arrays[self.nin + 1 :]
+    if self.nout == 1:
+        out_arrays = out_arrays[0]
+
+    if "out" in kwargs:
+        kwargs = {**kwargs, "out": out_arrays}
+
+    return (arrays[0], *in_arrays), kwargs
+
+
+def _math_op(name, inplace=True, reverse=True):
+    def f(self, other):
+        return globals()[name](self, other)
+
+    def r(self, other):
+        return globals()[name](other, self)
+
+    def i(self, other):
+        return globals()[name](self, other, out=self)
+
+    out = [f]
+
+    if reverse:
+        out.append(r)
+
+    if inplace:
+        out.append(i)
+
+    return out if len(out) != 1 else out[0]
+
+
 class ndarray:
-    pass
+    __add__, __radd__, __iadd__ = _math_op("add")
+    __sub__, __rsub__, __isub__ = _math_op("subtract")
+    __mul__, __rmul__, __imul__ = _math_op("multiply")
+    __truediv__, __rtruediv__, __itruediv__ = _math_op("true_divide")
+    __floordiv__, __rfloordiv__, __ifloordiv__ = _math_op("floor_divide")
+    __matmul__, __rmatmul__, __imatmul__ = _math_op("matmul")
+    __mod__, __rmod__, __imod__ = _math_op("mod")
+    __divmod__ = _math_op("divmod", inplace=False, reverse=False)
+    __lshift__, __rlshift__, __ilshift__ = _math_op("left_shift")
+    __rshift__, __rrshift__, __irshift__ = _math_op("right_shift")
+    __pow__, __rpow__, __ipow__ = _math_op("power")
+    __and__, __rand__, __iand__ = _math_op("bitwise_and")
+    __or__, __ror__, __ior__ = _math_op("bitwise_or")
+    __xor__, __rxor__, __ixor__ = _math_op("bitwise_xor")
+    __neg__ = _math_op("negative", inplace=False, reverse=False)
+    __pos__ = _math_op("positive", inplace=False, reverse=False)
+    __abs__ = _math_op("absolute", inplace=False, reverse=False)
+    __invert__ = _math_op("invert", inplace=False, reverse=False)
+    __lt__ = _math_op("less", inplace=False, reverse=False)
+    __gt__ = _math_op("greater", inplace=False, reverse=False)
+    __le__ = _math_op("less_equal", inplace=False, reverse=False)
+    __ge__ = _math_op("greater_equal", inplace=False, reverse=False)
 
 
 class dtype:
@@ -89,6 +145,8 @@ class ufunc:
 
     def __str__(self):
         return "<ufunc '{}'>".format(self.name)
+
+    __repr__ = __str__
 
     @property  # type: ignore
     @create_numpy(_self_argreplacer)
@@ -108,19 +166,6 @@ class ufunc:
     def ntypes(self):
         return len(self.types)
 
-    def _ufunc_argreplacer(args, kwargs, arrays):
-        self = args[0]
-        args = args[1:]
-        in_arrays = arrays[1 : self.nin + 1]
-        out_arrays = arrays[self.nin + 1 :]
-        if self.nout == 1:
-            out_arrays = out_arrays[0]
-
-        if "out" in kwargs:
-            kwargs = {**kwargs, "out": out_arrays}
-
-        return (arrays[0], *in_arrays), kwargs
-
     @create_numpy(_ufunc_argreplacer)
     @all_of_type(ndarray)
     def __call__(self, *args, out=None):
@@ -128,213 +173,117 @@ class ufunc:
         if not isinstance(out, tuple):
             out = (out,)
 
-        return (mark_ufunc(self),) + in_args + out
+        return (mark_ufunc(self),) + in_args + tuple(mark_non_coercible(o) for o in out)
 
     @create_numpy(_ureduce_argreplacer)
     @all_of_type(ndarray)
     def reduce(self, a, axis=0, dtype=None, out=None, keepdims=False):
-        return (mark_ufunc(self), a, out)
+        return (mark_ufunc(self), a, mark_non_coercible(out))
 
     @create_numpy(_ureduce_argreplacer)
     @all_of_type(ndarray)
     def accumulate(self, a, axis=0, dtype=None, out=None):
-        return (mark_ufunc(self), a, out)
+        return (mark_ufunc(self), a, mark_non_coercible(out))
 
 
 mark_ufunc = mark_as(ufunc)
 mark_dtype = mark_as(dtype)
+mark_non_coercible = lambda x: Dispatchable(x, ndarray, coercible=False)
 
+# Math operations
+add = ufunc("add", 2, 1)
+subtract = ufunc("subtract", 2, 1)
+multiply = ufunc("multiply", 2, 1)
+matmul = ufunc("matmul", 2, 1)
+divide = ufunc("divide", 2, 1)
+logaddexp = ufunc("logaddexp", 2, 1)
+logaddexp2 = ufunc("logaddexp2", 2, 1)
+true_divide = ufunc("true_divide", 2, 1)
+floor_divide = ufunc("floor_divide", 2, 1)
+negative = ufunc("negative", 1, 1)
+positive = ufunc("positive", 1, 1)
+power = ufunc("power", 2, 1)
+remainder = ufunc("remainder", 2, 1)
+mod = ufunc("mod", 2, 1)
+divmod = ufunc("divmod", 2, 2)
+absolute = ufunc("absolute", 1, 1)
+fabs = ufunc("fabs", 1, 1)
+rint = ufunc("rint", 1, 1)
+sign = ufunc("sign", 1, 1)
+heaviside = ufunc("heaviside", 1, 1)
+conj = ufunc("conj", 1, 1)
+exp = ufunc("exp", 1, 1)
+exp2 = ufunc("exp2", 1, 1)
+log = ufunc("log", 1, 1)
+log2 = ufunc("log2", 1, 1)
+log10 = ufunc("log10", 1, 1)
+expm1 = ufunc("expm1", 1, 1)
+log1p = ufunc("log1p", 1, 1)
+sqrt = ufunc("sqrt", 1, 1)
+square = ufunc("square", 1, 1)
+cbrt = ufunc("cbrt", 1, 1)
+reciprocal = ufunc("reciprocal", 1, 1)
+gcd = ufunc("gcd", 1, 1)
+lcm = ufunc("lcm", 1, 1)
 
-ufunc_list = [
-    # Math operations
-    "add",
-    "subtract",
-    "multiply",
-    "divide",
-    "logaddexp",
-    "logaddexp2",
-    "true_divide",
-    "floor_divide",
-    "negative",
-    "positive",
-    "power",
-    "remainder",
-    "mod",
-    "fmod",
-    "divmod",
-    "absolute",
-    "fabs",
-    "rint",
-    "sign",
-    "heaviside",
-    "conj",
-    "exp",
-    "exp2",
-    "log",
-    "log2",
-    "log10",
-    "expm1",
-    "log1p",
-    "sqrt",
-    "square",
-    "cbrt",
-    "reciprocal",
-    "gcd",
-    "lcm",
-    # Trigonometric functions
-    "sin",
-    "cos",
-    "tan",
-    "arcsin",
-    "arccos",
-    "arctan",
-    "arctan2",
-    "hypot",
-    "sinh",
-    "cosh",
-    "tanh",
-    "arcsinh",
-    "arccosh",
-    "arctanh",
-    "deg2rad",
-    "rad2deg",
-    # Bit-twiddling functions
-    "bitwise_and",
-    "bitwise_or",
-    "bitwise_xor",
-    "invert",
-    "left_shift",
-    "right_shift",
-    # Comparison functions
-    "greater",
-    "greater_equal",
-    "less",
-    "less_equal",
-    "not_equal",
-    "equal",
-    "logical_and",
-    "logical_or",
-    "logical_xor",
-    "logical_not",
-    "maximum",
-    "minimum",
-    "fmax",
-    "fmin",
-    # Floating functions
-    "isfinite",
-    "isinf",
-    "isnan",
-    "isnat",
-    "fabs",
-    "signbit",
-    "copysign",
-    "nextafter",
-    "spacing",
-    "modf",
-    "ldexp",
-    "frexp",
-    "fmod",
-    "floor",
-    "ceil",
-    "trunc",
-]
+# Trigonometric functions
+sin = ufunc("sin", 1, 1)
+cos = ufunc("square", 1, 1)
+tan = ufunc("square", 1, 1)
+arcsin = ufunc("arcsin", 1, 1)
+arccos = ufunc("arccos", 1, 1)
+arctan = ufunc("arctan", 1, 1)
+arctan2 = ufunc("arctan2", 1, 1)
+hypot = ufunc("hypot", 1, 1)
+sinh = ufunc("sinh", 1, 1)
+cosh = ufunc("cosh", 1, 1)
+tanh = ufunc("tanh", 1, 1)
+arcsinh = ufunc("arcsinh", 1, 1)
+arccosh = ufunc("arccosh", 1, 1)
+arctanh = ufunc("arctanh", 1, 1)
+deg2rad = ufunc("deg2rad", 1, 1)
+rad2deg = ufunc("rad2deg", 1, 1)
 
-_args_mapper = {
-    # Math operations
-    "add": (2, 1),
-    "subtract": (2, 1),
-    "multiply": (2, 1),
-    "divide": (2, 1),
-    "logaddexp": (2, 1),
-    "logaddexp2": (2, 1),
-    "true_divide": (2, 1),
-    "floor_divide": (2, 1),
-    "negative": (1, 1),
-    "positive": (1, 1),
-    "power": (2, 1),
-    "remainder": (2, 1),
-    "mod": (2, 1),
-    "fmod": (2, 1),
-    "divmod": (2, 2),
-    "absolute": (1, 1),
-    "fabs": (1, 1),
-    "rint": (1, 1),
-    "sign": (1, 1),
-    "heaviside": (1, 1),
-    "conj": (1, 1),
-    "exp": (1, 1),
-    "exp2": (1, 1),
-    "log": (1, 1),
-    "log2": (1, 1),
-    "log10": (1, 1),
-    "expm1": (1, 1),
-    "log1p": (1, 1),
-    "sqrt": (1, 1),
-    "square": (1, 1),
-    "cbrt": (1, 1),
-    "reciprocal": (1, 1),
-    "gcd": (2, 1),
-    "lcm": (2, 1),
-    # Trigonometric functions
-    "sin": (1, 1),
-    "cos": (1, 1),
-    "tan": (1, 1),
-    "arcsin": (1, 1),
-    "arccos": (1, 1),
-    "arctan": (1, 1),
-    "arctan2": (2, 1),
-    "hypot": (2, 1),
-    "sinh": (1, 1),
-    "cosh": (1, 1),
-    "tanh": (1, 1),
-    "arcsinh": (1, 1),
-    "arccosh": (1, 1),
-    "arctanh": (1, 1),
-    "deg2rad": (1, 1),
-    "rad2deg": (1, 1),
-    # Bit-twiddling functions
-    "bitwise_and": (2, 1),
-    "bitwise_or": (2, 1),
-    "bitwise_xor": (2, 1),
-    "invert": (1, 1),
-    "left_shift": (2, 1),
-    "right_shift": (2, 1),
-    # Comparison functions
-    "greater": (2, 1),
-    "greater_equal": (2, 1),
-    "less": (2, 1),
-    "less_equal": (2, 1),
-    "not_equal": (2, 1),
-    "equal": (2, 1),
-    "logical_and": (2, 1),
-    "logical_or": (2, 1),
-    "logical_xor": (2, 1),
-    "logical_not": (1, 1),
-    "maximum": (2, 1),
-    "minimum": (2, 1),
-    "fmax": (2, 1),
-    "fmin": (2, 1),
-    # Floating functions
-    "isfinite": (1, 1),
-    "isinf": (1, 1),
-    "isnan": (1, 1),
-    "isnat": (1, 1),
-    "fabs": (1, 1),
-    "signbit": (1, 1),
-    "copysign": (2, 1),
-    "nextafter": (2, 1),
-    "spacing": (1, 1),
-    "modf": (1, 2),
-    "ldexp": (2, 1),
-    "frexp": (1, 2),
-    "fmod": (2, 1),
-    "floor": (1, 1),
-    "ceil": (1, 1),
-    "trunc": (1, 1),
-}
+# Bit-twiddling functions
+bitwise_and = ufunc("bitwise_and", 2, 1)
+bitwise_or = ufunc("bitwise_or", 2, 1)
+bitwise_xor = ufunc("bitwise_xor", 2, 1)
+invert = ufunc("invert", 1, 1)
+left_shift = ufunc("left_shift", 2, 1)
+right_shift = ufunc("right_shift", 2, 1)
 
-for ufunc_name in ufunc_list:
-    globals()[ufunc_name] = ufunc(ufunc_name, *_args_mapper[ufunc_name])
+# Comparison functions
+greater = ufunc("greater", 2, 1)
+greater_equal = ufunc("greater_equal", 2, 1)
+less = ufunc("less", 2, 1)
+less_equal = ufunc("less_equal", 2, 1)
+not_equal = ufunc("not_equal", 2, 1)
+equal = ufunc("equal", 2, 1)
+logical_and = ufunc("logical_and", 2, 1)
+logical_or = ufunc("logical_or", 2, 1)
+logical_xor = ufunc("logical_xor", 2, 1)
+logical_not = ufunc("logical_not", 1, 1)
+maximum = ufunc("maximum", 2, 1)
+minimum = ufunc("minimum", 2, 1)
+fmax = ufunc("fmax", 2, 1)
+fmin = ufunc("fmin", 2, 1)
+
+# Floating functions
+isfinite = ufunc("isfinite", 1, 1)
+isinf = ufunc("greater_equal", 1, 1)
+isnan = ufunc("isnan", 1, 1)
+isnat = ufunc("isnat", 1, 1)
+signbit = ufunc("signbit", 1, 1)
+copysign = ufunc("copysign", 2, 1)
+nextafter = ufunc("nextafter", 2, 1)
+spacing = ufunc("spacing", 1, 1)
+modf = ufunc("modf", 1, 2)
+ldexp = ufunc("ldexp", 2, 1)
+frexp = ufunc("frexp", 1, 2)
+fmod = ufunc("fmod", 2, 1)
+floor = ufunc("floor", 1, 1)
+ceil = ufunc("ceil", 1, 1)
+trunc = ufunc("trunc", 1, 1)
 
 
 @create_numpy(_dtype_argreplacer)
@@ -725,4 +674,7 @@ class errstate:
         return ()
 
 
-del ufunc_name
+ufunc_list = []
+for key, val in globals().copy().items():
+    if isinstance(val, ufunc):
+        ufunc_list.append(key)
