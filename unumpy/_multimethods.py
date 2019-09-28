@@ -228,13 +228,13 @@ lcm = ufunc("lcm", 1, 1)
 
 # Trigonometric functions
 sin = ufunc("sin", 1, 1)
-cos = ufunc("square", 1, 1)
-tan = ufunc("square", 1, 1)
+cos = ufunc("cos", 1, 1)
+tan = ufunc("tan", 1, 1)
 arcsin = ufunc("arcsin", 1, 1)
 arccos = ufunc("arccos", 1, 1)
 arctan = ufunc("arctan", 1, 1)
-arctan2 = ufunc("arctan2", 1, 1)
-hypot = ufunc("hypot", 1, 1)
+arctan2 = ufunc("arctan2", 2, 1)
+hypot = ufunc("hypot", 2, 1)
 sinh = ufunc("sinh", 1, 1)
 cosh = ufunc("cosh", 1, 1)
 tanh = ufunc("tanh", 1, 1)
@@ -332,43 +332,43 @@ def reduce_impl(red_ufunc: ufunc):
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["add"]))
 @all_of_type(ndarray)
 def sum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["multiply"]))
 @all_of_type(ndarray)
 def prod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["minimum"]))
 @all_of_type(ndarray)
 def min(a, axis=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["maximum"]))
 @all_of_type(ndarray)
 def max(a, axis=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["logical_or"]))
 @all_of_type(ndarray)
 def any(a, axis=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["logical_and"]))
 @all_of_type(ndarray)
 def all(a, axis=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def argmin(a, axis=None, out=None):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_self_argreplacer)
@@ -380,7 +380,7 @@ def nanargmin(a, axis=None):
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def argmax(a, axis=None, out=None):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_self_argreplacer)
@@ -392,37 +392,37 @@ def nanargmax(a, axis=None):
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def nanmin(a, axis=None, out=None):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def nanmax(a, axis=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def nansum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def nanprod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_reduce_argreplacer)
 @all_of_type(ndarray)
 def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    return (a, out)
+    return (a, mark_non_coercible(out))
 
 
 # set routines
