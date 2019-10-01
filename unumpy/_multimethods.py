@@ -109,6 +109,13 @@ def _math_op(name, inplace=True, reverse=True):
     return out if len(out) != 1 else out[0]
 
 
+def _unary_op(name):
+    def f(self):
+        return globals()[name](self)
+
+    return f
+
+
 class ndarray:
     __add__, __radd__, __iadd__ = _math_op("add")
     __sub__, __rsub__, __isub__ = _math_op("subtract")
@@ -117,21 +124,23 @@ class ndarray:
     __floordiv__, __rfloordiv__, __ifloordiv__ = _math_op("floor_divide")
     __matmul__, __rmatmul__, __imatmul__ = _math_op("matmul")
     __mod__, __rmod__, __imod__ = _math_op("mod")
-    __divmod__ = _math_op("divmod", inplace=False, reverse=False)
+    __divmod__, __rdivmod__ = _math_op("divmod", reverse=False)
     __lshift__, __rlshift__, __ilshift__ = _math_op("left_shift")
     __rshift__, __rrshift__, __irshift__ = _math_op("right_shift")
     __pow__, __rpow__, __ipow__ = _math_op("power")
     __and__, __rand__, __iand__ = _math_op("bitwise_and")
     __or__, __ror__, __ior__ = _math_op("bitwise_or")
     __xor__, __rxor__, __ixor__ = _math_op("bitwise_xor")
-    __neg__ = _math_op("negative", inplace=False, reverse=False)
-    __pos__ = _math_op("positive", inplace=False, reverse=False)
-    __abs__ = _math_op("absolute", inplace=False, reverse=False)
-    __invert__ = _math_op("invert", inplace=False, reverse=False)
+    __neg__ = _unary_op("negative")
+    __pos__ = _unary_op("positive")
+    __abs__ = _unary_op("absolute")
+    __invert__ = _unary_op("invert")
     __lt__ = _math_op("less", inplace=False, reverse=False)
     __gt__ = _math_op("greater", inplace=False, reverse=False)
     __le__ = _math_op("less_equal", inplace=False, reverse=False)
     __ge__ = _math_op("greater_equal", inplace=False, reverse=False)
+    __eq__ = _math_op("equal", inplace=False, reverse=False)
+    __ne__ = _math_op("not_equal", inplace=False, reverse=False)
 
 
 class dtype:
