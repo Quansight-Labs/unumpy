@@ -142,6 +142,9 @@ class ndarray:
     __eq__ = _math_op("equal", inplace=False, reverse=False)
     __ne__ = _math_op("not_equal", inplace=False, reverse=False)
 
+    def __array_ufunc__(self, method, *inputs, **kwargs):
+        return NotImplemented
+
 
 class dtype:
     pass
@@ -323,6 +326,11 @@ def zeros(shape, dtype=float, order="C"):
     default=lambda shape, dtype, order="C": full(shape, 1, dtype, order),
 )
 def ones(shape, dtype=float, order="C"):
+    return ()
+
+
+@create_numpy(_identity_argreplacer)
+def eye(N, M=None, k=0, dtype=float, order="C"):
     return ()
 
 
