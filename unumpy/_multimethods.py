@@ -28,7 +28,12 @@ def _ureduce_argreplacer(args, kwargs, dispatchables):
     def ureduce(self, a, axis=0, dtype=None, out=None, keepdims=False):
         return (
             (dispatchables[0], dispatchables[1]),
-            dict(axis=axis, dtype=dtype, out=dispatchables[2], keepdims=keepdims),
+            dict(
+                axis=axis,
+                dtype=dispatchables[2],
+                out=dispatchables[3],
+                keepdims=keepdims,
+            ),
         )
 
     return ureduce(*args, **kwargs)
@@ -78,12 +83,15 @@ def _ufunc_argreplacer(args, kwargs, arrays):
     self = args[0]
     args = args[1:]
     in_arrays = arrays[1 : self.nin + 1]
-    out_arrays = arrays[self.nin + 1 :]
+    out_arrays = arrays[self.nin + 1 : -1]
+    dtype = arrays[-1]
     if self.nout == 1:
         out_arrays = out_arrays[0]
 
     if "out" in kwargs:
         kwargs = {**kwargs, "out": out_arrays}
+    if "dtype" in kwargs:
+        kwargs["dtype"] = dtype
 
     return (arrays[0], *in_arrays), kwargs
 
@@ -180,22 +188,28 @@ class ufunc:
 
     @create_numpy(_ufunc_argreplacer)
     @all_of_type(ndarray)
-    def __call__(self, *args, out=None):
+    def __call__(self, *args, out=None, dtype=None):
         in_args = tuple(args)
+        dtype = mark_dtype(dtype)
         if not isinstance(out, tuple):
             out = (out,)
 
-        return (mark_ufunc(self),) + in_args + tuple(mark_non_coercible(o) for o in out)
+        return (
+            (mark_ufunc(self),)
+            + in_args
+            + tuple(mark_non_coercible(o) for o in out)
+            + (dtype,)
+        )
 
     @create_numpy(_ureduce_argreplacer)
     @all_of_type(ndarray)
     def reduce(self, a, axis=0, dtype=None, out=None, keepdims=False):
-        return (mark_ufunc(self), a, mark_non_coercible(out))
+        return (mark_ufunc(self), a, mark_dtype(dtype), mark_non_coercible(out))
 
     @create_numpy(_ureduce_argreplacer)
     @all_of_type(ndarray)
     def accumulate(self, a, axis=0, dtype=None, out=None):
-        return (mark_ufunc(self), a, mark_non_coercible(out))
+        return (mark_ufunc(self), a, mark_dtype(dtype), mark_non_coercible(out))
 
 
 mark_ufunc = mark_as(ufunc)
