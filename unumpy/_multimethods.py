@@ -322,35 +322,35 @@ def arange(start, stop=None, step=None, dtype=None):
     return (mark_dtype(dtype),)
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(_dtype_argreplacer)
 def array(object, dtype=None, copy=True, order="K", subok=False, ndmin=0):
-    return ()
+    return (mark_dtype(dtype),)
 
 
 @create_numpy(
-    _identity_argreplacer,
+    _dtype_argreplacer,
     default=lambda shape, dtype, order="C": full(shape, 0, dtype, order),
 )
 def zeros(shape, dtype=float, order="C"):
-    return ()
+    return (mark_dtype(dtype),)
 
 
 @create_numpy(
-    _identity_argreplacer,
+    _dtype_argreplacer,
     default=lambda shape, dtype, order="C": full(shape, 1, dtype, order),
 )
 def ones(shape, dtype=float, order="C"):
-    return ()
+    return (mark_dtype(dtype),)
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(_dtype_argreplacer)
 def eye(N, M=None, k=0, dtype=float, order="C"):
-    return ()
+    return (mark_dtype(dtype),)
 
 
-@create_numpy(_identity_argreplacer)
+@create_numpy(_dtype_argreplacer)
 def asarray(a, dtype=None, order=None):
-    return ()
+    return (mark_dtype(dtype),)
 
 
 def reduce_impl(red_ufunc: ufunc):
