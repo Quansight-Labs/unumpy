@@ -2,6 +2,7 @@ import pytest
 import uarray as ua
 import unumpy as np
 import numpy as onp
+from ndtypes import ndt
 import torch
 import dask.array as da
 import sparse
@@ -13,6 +14,7 @@ import unumpy.sparse_backend as SparseBackend
 
 ua.set_global_backend(NumpyBackend)
 
+dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
     (NumpyBackend, (onp.ndarray, onp.generic)),
     (DaskBackend, (da.Array, onp.generic)),
@@ -22,6 +24,7 @@ LIST_BACKENDS = [
         marks=pytest.mark.xfail(reason="PyTorch not fully NumPy compatible."),
     ),
 ]
+
 
 FULLY_TESTED_BACKENDS = [NumpyBackend, DaskBackend]
 
@@ -113,8 +116,6 @@ def replace_args_kwargs(method, backend, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
-        (np.sum, ([1],), {}),
-        (np.prod, ([1.0],), {}),
         (np.any, ([True, False],), {}),
         (np.all, ([True, False],), {}),
         (np.min, ([1, 3, 2],), {}),
@@ -125,8 +126,6 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nanargmax, ([1, 3, 2],), {}),
         (np.nanmin, ([1, 3, 2],), {}),
         (np.nanmax, ([1, 3, 2],), {}),
-        (np.std, ([1, 3, 2],), {}),
-        (np.var, ([1, 3, 2],), {}),
         (np.unique, ([1, 2, 2],), {}),
         (np.in1d, ([1], [1, 2, 2]), {}),
         (np.isin, ([1], [1, 2, 2]), {}),
@@ -177,6 +176,41 @@ def test_functions_coerce(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.power, ([1, 2], 3), {}),
+        (np.prod, ([1.0],), {}),
+        (np.sum, ([1],), {}),
+        (np.std, ([1, 3, 2],), {}),
+        (np.var, ([1, 3, 2],), {}),
+    ],
+)
+def test_functions_coerce_with_dtype(backend, method, args, kwargs):
+    backend, types = backend
+    for dtype in dtypes:
+        try:
+            with ua.set_backend(backend, coerce=True):
+                if method == np.power and backend == XndBackend:
+                    pytest.xfail(reason="XND backend has no implementation for power.")
+                if method == np.prod and backend == SparseBackend:
+                    pytest.xfail(
+                        reason="Sparse backend has no implementation for prod."
+                    )
+                kwargs["dtype"] = dtype
+                ret = method(*args, **kwargs)
+        except ua.BackendNotImplementedError:
+            if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+                raise
+            pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    assert isinstance(ret, types)
+    if backend == XndBackend:
+        assert ret.dtype == ndt(dtype)
+    else:
+        assert ret.dtype == dtype
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
         (np.broadcast_arrays, ([1, 2], [[3, 4]]), {}),
         (np.nonzero, ([3, 1, 2, 4],), {}),
         (np.where, ([[3, 1, 2, 4]],), {}),
@@ -198,19 +232,26 @@ def test_multiple_output(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
-        (np.zeros, ((1, 2, 3),), {}),
-        (np.ones, ((1, 2, 3),), {}),
+        (np.eye, (2,), {}),
         (np.full, ((1, 2, 3), 1.3), {}),
+        (np.ones, ((1, 2, 3),), {}),
+        (np.zeros, ((1, 2, 3),), {}),
     ],
 )
 def test_array_creation(backend, method, args, kwargs):
     backend, types = backend
-    try:
-        with ua.set_backend(backend, coerce=True):
-            ret = method(*args, **kwargs)
-    except ua.BackendNotImplementedError:
-        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
-            raise
-        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+    for dtype in dtypes:
+        try:
+            with ua.set_backend(backend, coerce=True):
+                kwargs["dtype"] = dtype
+                ret = method(*args, **kwargs)
+        except ua.BackendNotImplementedError:
+            if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+                raise
+            pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    assert isinstance(ret, types)
+        assert isinstance(ret, types)
+        if backend == XndBackend:
+            assert ret.dtype == ndt(dtype)
+        else:
+            assert ret.dtype == dtype
