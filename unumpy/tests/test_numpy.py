@@ -195,6 +195,9 @@ def test_multiple_output(backend, method, args, kwargs):
     assert all(isinstance(arr, types) for arr in ret)
 
 
+dtypes = [onp.int8, onp.int16, onp.int32, onp.float32, onp.float64]
+
+
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
@@ -205,12 +208,29 @@ def test_multiple_output(backend, method, args, kwargs):
 )
 def test_array_creation(backend, method, args, kwargs):
     backend, types = backend
-    try:
-        with ua.set_backend(backend, coerce=True):
-            ret = method(*args, **kwargs)
-    except ua.BackendNotImplementedError:
-        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
-            raise
-        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+    if backend == NumpyBackend:
+        for dtype in dtypes:
+            try:
+                with ua.set_backend(backend, coerce=True):
+                    kwargs["dtype"] = dtype
+                    ret = method(*args, **kwargs)
+            except ua.BackendNotImplementedError:
+                if (
+                    backend in FULLY_TESTED_BACKENDS
+                    and (backend, method) not in EXCEPTIONS
+                ):
+                    raise
+                pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    assert isinstance(ret, types)
+            assert isinstance(ret, types)
+            assert ret.dtype == dtype
+    else:
+        try:
+            with ua.set_backend(backend, coerce=True):
+                ret = method(*args, **kwargs)
+        except ua.BackendNotImplementedError:
+            if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+                raise
+            pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+        assert isinstance(ret, types)
