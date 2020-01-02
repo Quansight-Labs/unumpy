@@ -2,6 +2,7 @@ import pytest
 import uarray as ua
 import unumpy as np
 import numpy as onp
+from ndtypes import ndt
 import torch
 import dask.array as da
 import sparse
@@ -195,7 +196,7 @@ def test_multiple_output(backend, method, args, kwargs):
     assert all(isinstance(arr, types) for arr in ret)
 
 
-dtypes = [onp.int8, onp.int16, onp.int32, onp.float32, onp.float64]
+dtypes = ["int8", "int16", "int32", "float32", "float64"]
 
 
 @pytest.mark.parametrize(
@@ -208,25 +209,10 @@ dtypes = [onp.int8, onp.int16, onp.int32, onp.float32, onp.float64]
 )
 def test_array_creation(backend, method, args, kwargs):
     backend, types = backend
-    if backend == NumpyBackend:
-        for dtype in dtypes:
-            try:
-                with ua.set_backend(backend, coerce=True):
-                    kwargs["dtype"] = dtype
-                    ret = method(*args, **kwargs)
-            except ua.BackendNotImplementedError:
-                if (
-                    backend in FULLY_TESTED_BACKENDS
-                    and (backend, method) not in EXCEPTIONS
-                ):
-                    raise
-                pytest.xfail(reason="The backend has no implementation for this ufunc.")
-
-            assert isinstance(ret, types)
-            assert ret.dtype == dtype
-    else:
+    for dtype in dtypes:
         try:
             with ua.set_backend(backend, coerce=True):
+                kwargs["dtype"] = dtype
                 ret = method(*args, **kwargs)
         except ua.BackendNotImplementedError:
             if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
@@ -234,3 +220,7 @@ def test_array_creation(backend, method, args, kwargs):
             pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
         assert isinstance(ret, types)
+        if backend == XndBackend:
+            assert ret.dtype == ndt(dtype)
+        else:
+            assert ret.dtype == dtype
