@@ -709,3 +709,75 @@ ufunc_list = []
 for key, val in globals().copy().items():
     if isinstance(val, ufunc):
         ufunc_list.append(key)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def shape(array):
+    return (array,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def ndim(array):
+    return (array,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def size(array):
+    return (array,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nbytes(array):
+    return (array,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def swapaxes(a, axis1, axis2):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def rollaxis(a, axis, start=0):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def moveaxis(a, source, destination):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def reshape(a, newshape, order="C"):
+    return (a,)
+
+
+@create_numpy(_identity_argreplacer)
+@all_of_type(ndarray)
+def column_stack(tup):
+    return (tup,)
+
+
+@create_numpy(_identity_argreplacer)
+@all_of_type(ndarray)
+def hstack(tup):
+    return (tup,)
+
+
+@create_numpy(_identity_argreplacer)
+@all_of_type(ndarray)
+def vstack(tup):
+    return (tup,)
+
+
+@create_numpy(_identity_argreplacer)
+@all_of_type(ndarray)
+def block(arrays):
+    return (arrays,)
