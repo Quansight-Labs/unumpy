@@ -69,6 +69,10 @@ EXCEPTIONS = {
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
     (DaskBackend, np.column_stack),
+    (DaskBackend, np.ndim),
+    (DaskBackend, np.size),
+    (XndBackend, np.ndim),
+    (XndBackend, np.size),
 }
 
 
@@ -119,6 +123,9 @@ def replace_args_kwargs(method, backend, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.ndim, ([1, 2],), {}),
+        (np.shape, ([1, 2],), {}),
+        (np.size, ([1, 2],), {}),
         (np.any, ([True, False],), {}),
         (np.all, ([True, False],), {}),
         (np.min, ([1, 3, 2],), {}),
@@ -183,7 +190,12 @@ def test_functions_coerce(backend, method, args, kwargs):
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     print(type(ret))
-    assert isinstance(ret, types)
+    if method is np.shape:
+        assert isinstance(ret, tuple)
+    elif method is np.ndim or method is np.size:
+        assert isinstance(ret, int)
+    else:
+        assert isinstance(ret, types)
 
     if isinstance(ret, da.Array):
         ret.compute()
