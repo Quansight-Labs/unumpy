@@ -68,6 +68,7 @@ EXCEPTIONS = {
     (DaskBackend, np.sort_complex),
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
+    (DaskBackend, np.column_stack),
 }
 
 
@@ -135,12 +136,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.setdiff1d, ([1, 3, 4, 3], [3, 1, 2, 1]), {}),
         (np.setxor1d, ([1, 3, 4, 3], [3, 1, 2, 1]), {}),
         (np.sort, ([3, 1, 2, 4],), {}),
-        pytest.param(
-            np.lexsort,
-            (([1, 2, 2, 3], [3, 1, 2, 1]),),
-            {},
-            marks=pytest.mark.xfail(reason="Lexsort doesn't fully work for CuPy."),
-        ),
+        (np.lexsort, (([1, 2, 2, 3], [3, 1, 2, 1]),), {}),
         (np.stack, (([1, 2], [3, 4]),), {}),
         (np.concatenate, (([1, 2, 3], [3, 4]),), {}),
         (np.broadcast_to, ([1, 2], (2, 2)), {}),
@@ -153,17 +149,14 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.swapaxes, ([[1, 2, 3]], 0, 1), {}),
         (np.rollaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
         (np.moveaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
-        pytest.param(
-            np.column_stack,
-            ((((1, 2, 3)), ((1, 2, 3))),),
-            {},
-            marks=pytest.mark.xfail(reason="column_stack isn't implemented for Dask."),
-        ),
+        (np.column_stack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         pytest.param(
             np.hstack,
             ((((1, 2, 3)), ((1, 2, 3))),),
             {},
-            marks=pytest.mark.xfail(reason="hstack isn't implemented for Dask."),
+            marks=pytest.mark.xfail(
+                reason="hstack has dimensionality issues with Dask."
+            ),
         ),
         (np.vstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         (np.block, ([([1, 2, 3]), ([1, 2, 3])],), {}),
