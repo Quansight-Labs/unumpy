@@ -1,4 +1,6 @@
 include versioneer.py
-recursive-include uarray *.py
-recursive-include unumpy *.py
-include unumpy/_version.py
+recursive-include unumpy *
+include LICENSE
+include requirements.txt
+recursive-include requirements *.txt
+global-exclude *.pyc *.so *.dll *.dylib
