@@ -1,6 +1,12 @@
 import numpy as np
 import dask.array as da
-from uarray import Dispatchable, wrap_single_convertor, skip_backend
+from uarray import (
+    Dispatchable,
+    wrap_single_convertor,
+    skip_backend,
+    get_state,
+    set_state,
+)
 from unumpy import ufunc, ufunc_list, ndarray
 import unumpy
 import functools
@@ -12,15 +18,25 @@ import random
 from typing import Dict
 
 _ufunc_mapping: Dict[ufunc, np.ufunc] = {}
-
 __ua_domain__ = "numpy"
+
+
+def wrap_current_state(func):
+    state = get_state()
+
+    @functools.wraps(func)
+    def wrapped(*a, **kw):
+        with set_state(state):
+            return func(*a, **kw)
+
+    return wrapped
 
 
 def wrap_map_blocks(func):
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
         with skip_backend(sys.modules[__name__]):
-            return da.map_blocks(func, *args, **kwargs)
+            return da.map_blocks(wrap_current_state(func), *args, **kwargs)
 
     return wrapped
 

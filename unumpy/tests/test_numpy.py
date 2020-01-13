@@ -93,6 +93,8 @@ def test_ufuncs_coerce(backend, method, args, kwargs):
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     assert isinstance(ret, types)
+    if isinstance(ret, da.Array):
+        ret.compute()
 
 
 def replace_args_kwargs(method, backend, args, kwargs):
@@ -173,6 +175,9 @@ def test_functions_coerce(backend, method, args, kwargs):
     print(type(ret))
     assert isinstance(ret, types)
 
+    if isinstance(ret, da.Array):
+        ret.compute()
+
 
 @pytest.mark.parametrize(
     "method, args, kwargs",
@@ -194,6 +199,10 @@ def test_multiple_output(backend, method, args, kwargs):
 
     assert all(isinstance(arr, types) for arr in ret)
 
+    for arr in ret:
+        if isinstance(arr, da.Array):
+            arr.compute()
+
 
 @pytest.mark.parametrize(
     "method, args, kwargs",
@@ -214,3 +223,6 @@ def test_array_creation(backend, method, args, kwargs):
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     assert isinstance(ret, types)
+
+    if isinstance(ret, da.Array):
+        ret.compute()
