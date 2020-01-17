@@ -1,5 +1,7 @@
 import functools
+import operator
 from uarray import create_multimethod, mark_as, all_of_type, Dispatchable
+import builtins
 
 create_numpy = functools.partial(create_multimethod, domain="numpy")
 
@@ -69,6 +71,8 @@ def getattr_impl(attr):
             return getattr(a, attr)
 
         return NotImplemented
+
+    return func
 
 
 def method_impl(method):
@@ -553,8 +557,8 @@ def broadcast_to(array, shape, subok=False):
 
 
 def _first_argreplacer(args, kwargs, arrays1):
-    def func(arrays, axis=0, out=None):
-        return (arrays1,), dict(axis=0, out=None)
+    def func(arrays, *args, **kwargs):
+        return (arrays1,) + args, kwargs
 
     return func(*args, **kwargs)
 
@@ -711,73 +715,149 @@ for key, val in globals().copy().items():
         ufunc_list.append(key)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_self_argreplacer, default=getattr_impl("shape"))
 @all_of_type(ndarray)
 def shape(array):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_self_argreplacer, default=lambda array: len(shape(array)))
 @all_of_type(ndarray)
 def ndim(array):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(
+    _self_argreplacer,
+    default=lambda array: functools.reduce(operator.mul, shape(array), 1),
+)
 @all_of_type(ndarray)
 def size(array):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_self_argreplacer, default=getattr_impl("nbytes"))
 @all_of_type(ndarray)
 def nbytes(array):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+def _swapaxes_default(a, axis1, axis2):
+    axes = list(range(ndim(a)))
+    axes[axis1] = axis2
+    axes[axis2] = axis1
+    return transpose(a, tuple(axes))
+
+
+@create_numpy(_self_argreplacer, default=_swapaxes_default)
 @all_of_type(ndarray)
 def swapaxes(a, axis1, axis2):
     return (a,)
 
 
-@create_numpy(_self_argreplacer)
+def _moveaxis_default(a, source, destination):
+    axes = list(range(ndim(a)))
+    axes.remove(source)
+    axes.insert(destination, source)
+    return transpose(a, tuple(axes))
+
+
+@create_numpy(_self_argreplacer, default=_moveaxis_default)
 @all_of_type(ndarray)
 def rollaxis(a, axis, start=0):
     return (a,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_self_argreplacer, default=_moveaxis_default)
 @all_of_type(ndarray)
 def moveaxis(a, source, destination):
     return (a,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_self_argreplacer, default=method_impl("reshape"))
 @all_of_type(ndarray)
 def reshape(a, newshape, order="C"):
     return (a,)
 
 
-@create_numpy(_identity_argreplacer)
+def _atleast_xd(*arys, min_dims=0):
+    outs = []
+    for a in arys:
+        dims = ndim(a)
+        missing_dims = min_dims - dims
+        if missing_dims <= 0:
+            outs.append(a)
+            continue
+
+        outs.append(a[(None,) * missing_dims])
+
+    if len(outs) == 1:
+        return outs[0]
+
+    return tuple(outs)
+
+
+@create_numpy(_first_argreplacer, default=functools.partial(_atleast_xd, min_dims=1))
+@all_of_type(ndarray)
+def atleast_1d(*arys):
+    return arys
+
+
+@create_numpy(_first_argreplacer, default=functools.partial(_atleast_xd, min_dims=2))
+@all_of_type(ndarray)
+def atleast_2d(*arys):
+    return arys
+
+
+@create_numpy(_first_argreplacer, default=functools.partial(_atleast_xd, min_dims=3))
+@all_of_type(ndarray)
+def atleast_3d(*arys):
+    return arys
+
+
+def _column_stack_default(tup):
+    tup = list(tup)
+    for i in range(len(tup)):
+        dims = ndim(tup[i])
+        if 1 <= dims <= 2:
+            tup[i] = _atleast_xd(tup[i], min_dims=2)
+        else:
+            raise ValueError("Only 1D or 2D arrays expected.")
+
+    return concatenate(tup, axis=1)
+
+
+@create_numpy(_first_argreplacer, default=_column_stack_default)
 @all_of_type(ndarray)
 def column_stack(tup):
-    return (tup,)
+    return tup
 
 
-@create_numpy(_identity_argreplacer)
+def _hstack_default(tup):
+    if builtins.all(ndim(a) == 1 for a in tup):
+        return concatenate(tup)
+
+    return concatenate(tup, axis=1)
+
+
+@create_numpy(_first_argreplacer, default=_hstack_default)
 @all_of_type(ndarray)
 def hstack(tup):
-    return (tup,)
+    return tup
 
 
-@create_numpy(_identity_argreplacer)
+def _vstack_default(tup):
+    tup = tuple(reshape(a, (1, shape(a)[0])) if ndim(a) == 1 else a for a in tup)
+    return concatenate(tup)
+
+
+@create_numpy(_first_argreplacer, default=_vstack_default)
 @all_of_type(ndarray)
 def vstack(tup):
-    return (tup,)
+    return tup
 
 
 @create_numpy(_identity_argreplacer)
 @all_of_type(ndarray)
 def block(arrays):
-    return (arrays,)
+    return arrays

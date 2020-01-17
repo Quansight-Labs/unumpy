@@ -68,11 +68,6 @@ EXCEPTIONS = {
     (DaskBackend, np.sort_complex),
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
-    (DaskBackend, np.column_stack),
-    (DaskBackend, np.ndim),
-    (DaskBackend, np.size),
-    (XndBackend, np.ndim),
-    (XndBackend, np.size),
 }
 
 
@@ -157,14 +152,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.rollaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
         (np.moveaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
         (np.column_stack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
-        pytest.param(
-            np.hstack,
-            ((((1, 2, 3)), ((1, 2, 3))),),
-            {},
-            marks=pytest.mark.xfail(
-                reason="hstack has dimensionality issues with Dask."
-            ),
-        ),
+        (np.hstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         (np.vstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         (np.block, ([([1, 2, 3]), ([1, 2, 3])],), {}),
         (np.reshape, ([[1, 2, 3], [1, 2, 3]], (6,)), {}),
@@ -189,10 +177,9 @@ def test_functions_coerce(backend, method, args, kwargs):
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    print(type(ret))
     if method is np.shape:
         assert isinstance(ret, tuple)
-    elif method is np.ndim or method is np.size:
+    elif method in (np.ndim, np.size):
         assert isinstance(ret, int)
     else:
         assert isinstance(ret, types)
@@ -204,8 +191,7 @@ def test_functions_coerce(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
-        (np.power, ([1, 2], 3), {}),
-        (np.prod, ([1.0],), {}),
+        (np.prod, ([1],), {}),
         (np.sum, ([1],), {}),
         (np.std, ([1, 3, 2],), {}),
         (np.var, ([1, 3, 2],), {}),
@@ -216,12 +202,6 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
     for dtype in dtypes:
         try:
             with ua.set_backend(backend, coerce=True):
-                if method == np.power and backend == XndBackend:
-                    pytest.xfail(reason="XND backend has no implementation for power.")
-                if method == np.prod and backend == SparseBackend:
-                    pytest.xfail(
-                        reason="Sparse backend has no implementation for prod."
-                    )
                 kwargs["dtype"] = dtype
                 ret = method(*args, **kwargs)
         except ua.BackendNotImplementedError:

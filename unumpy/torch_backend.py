@@ -9,10 +9,10 @@ __ua_domain__ = "numpy"
 
 def asarray(a, dtype=None, order=None):
     if torch.is_tensor(a):
-        if dtype is None or a.dtype != dtype:
-            ret = torch.tensor(a, dtype=dtype)
+        if dtype is not None and a.dtype != dtype:
+            ret = a.clone()
             if a.requires_grad:
-                ret.requires_grad_()
+                ret = ret.requires_grad_()
             return ret
 
         return a
