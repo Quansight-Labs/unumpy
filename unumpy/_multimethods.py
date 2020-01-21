@@ -857,7 +857,113 @@ def vstack(tup):
     return tup
 
 
-@create_numpy(_identity_argreplacer)
+class _Recurser(object):
+    def __init__(self, recurse_if):
+        self.recurse_if = recurse_if
+
+    def map_reduce(
+        self,
+        x,
+        f_map=lambda x, **kwargs: x,
+        f_reduce=lambda x, **kwargs: x,
+        f_kwargs=lambda **kwargs: kwargs,
+        **kwargs
+    ):
+        def f(x, **kwargs):
+            if not self.recurse_if(x):
+                return f_map(x, **kwargs)
+            else:
+                next_kwargs = f_kwargs(**kwargs)
+                return f_reduce((f(xi, **next_kwargs) for xi in x), **kwargs)
+
+        return f(x, **kwargs)
+
+    def walk(self, x, index=()):
+        do_recurse = self.recurse_if(x)
+        yield index, x, do_recurse
+
+        if not do_recurse:
+            return
+        for i, xi in enumerate(x):
+            # yield from ...
+            for v in self.walk(xi, index + (i,)):
+                yield v
+
+
+def _block_default(arrays):
+    rec = _Recurser(recurse_if=lambda x: type(x) is list)
+
+    list_ndim = None
+    any_empty = False
+    for index, value, entering in rec.walk(arrays):
+        if type(value) is tuple:
+            # not strictly necessary, but saves us from:
+            #  - more than one way to do things - no point treating tuples like
+            #    lists
+            #  - horribly confusing behaviour that results when tuples are
+            #    treated like ndarray
+            raise TypeError(
+                "{} is a tuple. "
+                "Only lists can be used to arrange blocks, and np.block does "
+                "not allow implicit conversion from tuple to ndarray.".format(index)
+            )
+        if not entering:
+            curr_depth = len(index)
+        elif len(value) == 0:
+            curr_depth = len(index) + 1
+            any_empty = True
+        else:
+            continue
+
+        if list_ndim is not None and list_ndim != curr_depth:
+            raise ValueError(
+                "List depths are mismatched. First element was at depth {}, "
+                "but there is an element at depth {} ({})".format(
+                    list_ndim, curr_depth, index
+                )
+            )
+        list_ndim = curr_depth
+
+        # convert all the arrays to ndarrays
+        arrays = rec.map_reduce(arrays, f_map=asarray, f_reduce=list)
+
+        elem_ndim = rec.map_reduce(arrays, f_map=lambda xi: xi.ndim, f_reduce=max)
+        ndim = builtins.max(list_ndim, elem_ndim)
+        first_axis = ndim - list_ndim
+        arrays = rec.map_reduce(
+            arrays, f_map=lambda xi: _atleast_xd(xi, ndim), f_reduce=list
+        )
+
+        return rec.map_reduce(
+            arrays,
+            f_reduce=lambda xs, axis: concatenate(list(xs), axis=axis),
+            f_kwargs=lambda axis: dict(axis=axis + 1),
+            axis=first_axis,
+        )
+
+
+def _block_arg_extractor(arrays):
+    if isinstance(arrays, list):
+        for arr in arrays:
+            yield from _block_arg_extractor(arr)
+        return
+
+    yield arrays
+
+
+def _block_argreplacer(args, kwargs, d):
+    d = iter(d)
+
+    def block(arrays):
+        if isinstance(arrays, list):
+            return list(block(arr) for arr in arrays)
+
+        return next(d)
+
+    return (block(*args, **kwargs),), {}
+
+
+@create_numpy(_block_argreplacer)
 @all_of_type(ndarray)
 def block(arrays):
-    return arrays
+    yield from _block_arg_extractor(arrays)
