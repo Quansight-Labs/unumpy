@@ -118,6 +118,9 @@ def replace_args_kwargs(method, backend, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.ndim, ([1, 2],), {}),
+        (np.shape, ([1, 2],), {}),
+        (np.size, ([1, 2],), {}),
         (np.any, ([True, False],), {}),
         (np.all, ([True, False],), {}),
         (np.min, ([1, 3, 2],), {}),
@@ -135,12 +138,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.setdiff1d, ([1, 3, 4, 3], [3, 1, 2, 1]), {}),
         (np.setxor1d, ([1, 3, 4, 3], [3, 1, 2, 1]), {}),
         (np.sort, ([3, 1, 2, 4],), {}),
-        pytest.param(
-            np.lexsort,
-            (([1, 2, 2, 3], [3, 1, 2, 1]),),
-            {},
-            marks=pytest.mark.xfail(reason="Lexsort doesn't fully work for CuPy."),
-        ),
+        (np.lexsort, (([1, 2, 2, 3], [3, 1, 2, 1]),), {}),
         (np.stack, (([1, 2], [3, 4]),), {}),
         (np.concatenate, (([1, 2, 3], [3, 4]),), {}),
         (np.broadcast_to, ([1, 2], (2, 2)), {}),
@@ -150,6 +148,14 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.partition, ([3, 1, 2, 4], 2), {}),
         (np.argpartition, ([3, 1, 2, 4], 2), {}),
         (np.transpose, ([[3, 1, 2, 4]],), {}),
+        (np.swapaxes, ([[1, 2, 3]], 0, 1), {}),
+        (np.rollaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
+        (np.moveaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
+        (np.column_stack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
+        (np.hstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
+        (np.vstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
+        (np.block, ([([1, 2, 3]), ([1, 2, 3])],), {}),
+        (np.reshape, ([[1, 2, 3], [1, 2, 3]], (6,)), {}),
         (np.argwhere, ([[3, 1, 2, 4]],), {}),
         (np.ravel, ([[3, 1, 2, 4]],), {}),
         (np.flatnonzero, ([[3, 1, 2, 4]],), {}),
@@ -171,8 +177,12 @@ def test_functions_coerce(backend, method, args, kwargs):
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    print(type(ret))
-    assert isinstance(ret, types)
+    if method is np.shape:
+        assert isinstance(ret, tuple)
+    elif method in (np.ndim, np.size):
+        assert isinstance(ret, int)
+    else:
+        assert isinstance(ret, types)
 
     if isinstance(ret, da.Array):
         ret.compute()
@@ -181,8 +191,7 @@ def test_functions_coerce(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
-        (np.power, ([1, 2], 3), {}),
-        (np.prod, ([1.0],), {}),
+        (np.prod, ([1],), {}),
         (np.sum, ([1],), {}),
         (np.std, ([1, 3, 2],), {}),
         (np.var, ([1, 3, 2],), {}),
@@ -193,12 +202,6 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
     for dtype in dtypes:
         try:
             with ua.set_backend(backend, coerce=True):
-                if method == np.power and backend == XndBackend:
-                    pytest.xfail(reason="XND backend has no implementation for power.")
-                if method == np.prod and backend == SparseBackend:
-                    pytest.xfail(
-                        reason="Sparse backend has no implementation for prod."
-                    )
                 kwargs["dtype"] = dtype
                 ret = method(*args, **kwargs)
         except ua.BackendNotImplementedError:

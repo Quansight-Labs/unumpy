@@ -38,7 +38,7 @@ def __ua_convert__(value, dispatch_type, coerce):
         return getattr(fn, value.name)
 
     if dispatch_type is dtype:
-        return value
+        return ndt(str(value)) if value is not None else None
 
     return NotImplemented
 
@@ -89,4 +89,7 @@ def convert(x, coerce):
     if coerce:
         return xnd.array(x)
 
-    return NotImplemented
+    if isinstance(x, (int, float, bool)):
+        return x
+
+    raise ua.BackendNotImplementedError("Unsupported output received.")

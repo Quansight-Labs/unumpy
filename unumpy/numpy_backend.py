@@ -1,6 +1,6 @@
 import numpy as np
 from uarray import Dispatchable, wrap_single_convertor
-from unumpy import ufunc, ufunc_list, ndarray
+from unumpy import ufunc, ufunc_list, ndarray, dtype
 import unumpy
 import functools
 
@@ -40,6 +40,12 @@ def __ua_convert__(value, dispatch_type, coerce):
 
     if dispatch_type is ufunc:
         return getattr(np, value.name)
+
+    if dispatch_type is dtype:
+        try:
+            return np.dtype(str(value))
+        except TypeError:
+            return np.dtype(value)
 
     return value
 
