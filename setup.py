@@ -55,7 +55,7 @@ setup(
     long_description=long_desc,
     long_description_content_type="text/markdown",
     install_requires=[
-        "uarray @ git+https://github.com/Quansight-Labs/uarray@master#egg=uarray"
+        "uarray==0.6"
     ],
     extras_require=extras_require,
     zip_safe=False,
