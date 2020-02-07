@@ -164,6 +164,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.pad, ([1, 2, 3, 4, 5], (2, 3), "constant"), dict(constant_values=(4, 6))),
         (np.searchsorted, ([1, 2, 3, 4, 5], 2), {}),
         (np.compress, ([True, False, True, False], [0, 1, 2, 3]), {}),
+        # the following case tests the fix in Quansight-Labs/unumpy#36
+        (np.compress, ([False, True], [[1, 2], [3, 4], [5, 6]], 1), {}),
         (np.extract, ([True, False, True, False], [0, 1, 2, 3]), {}),
         (np.count_nonzero, ([True, False, True, False],), {}),
     ],

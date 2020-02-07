@@ -56,11 +56,11 @@ def _reduce_argreplacer(args, kwargs, arrays):
 
 
 def _first2argreplacer(args, kwargs, arrays):
-    def func(a, b, **kw):
+    def func(a, b, *args, **kw):
         kw_out = kw.copy()
         if "out" in kw:
             kw_out["out"] = arrays[2]
-        return arrays[:2], kw_out
+        return arrays[:2] + args, kw_out
 
     return func(*args, **kwargs)
 
