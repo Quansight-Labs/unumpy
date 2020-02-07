@@ -2,8 +2,8 @@ try:
     import numpy as np
     import cupy as cp
     from uarray import Dispatchable, wrap_single_convertor
-    from .multimethods import ufunc, ufunc_list, ndarray
-    import unumpy.multimethods as multimethods
+    from unumpy import ufunc, ufunc_list, ndarray
+    import unumpy
     import functools
 
     from typing import Dict
@@ -12,7 +12,7 @@ try:
 
     __ua_domain__ = "numpy"
 
-    _implementations: Dict = {multimethods.ufunc.__call__: cp.ufunc.__call__}
+    _implementations: Dict = {unumpy.ufunc.__call__: cp.ufunc.__call__}
 
     def __ua_function__(method, args, kwargs):
         if method in _implementations:
