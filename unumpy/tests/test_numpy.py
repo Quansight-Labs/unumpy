@@ -84,6 +84,8 @@ def backend(request):
         (np.add, ([1], [2]), {}),  # type: ignore
         (np.sin, ([1.0],), {}),  # type: ignore
         (np.arange, (5, 20, 5), {}),
+        (np.arange, (5, 20), {}),
+        (np.arange, (5,), {}),
     ],
 )
 def test_ufuncs_coerce(backend, method, args, kwargs):
