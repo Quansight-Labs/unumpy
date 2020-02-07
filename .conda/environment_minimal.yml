@@ -1,0 +1,22 @@
+name: uarray_min
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.7
+  - pip
+  - sphinx
+  - sphinx_rtd_theme
+  - pytest
+  - pytest-cov
+  - mypy
+  - pytorch-cpu
+  - scipy
+  - dask
+  - sparse
+  - doc8
+  - black
+  - pip:
+    - pytest-mypy
+    - pytest-black

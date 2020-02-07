@@ -2,7 +2,6 @@ import pytest
 import uarray as ua
 import unumpy as np
 import numpy as onp
-from ndtypes import ndt
 import torch
 import dask.array as da
 import sparse
@@ -31,10 +30,12 @@ FULLY_TESTED_BACKENDS = [NumpyBackend, DaskBackend]
 try:
     import unumpy.xnd_backend as XndBackend
     import xnd
+    from ndtypes import ndt
 
     LIST_BACKENDS.append((XndBackend, xnd.xnd))
     FULLY_TESTED_BACKENDS.append(XndBackend)
 except ImportError:
+    XndBackend = None  # type: ignore
     LIST_BACKENDS.append(
         pytest.param(
             (None, None), marks=pytest.mark.skip(reason="xnd is not importable")
@@ -210,7 +211,7 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
             pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     assert isinstance(ret, types)
-    if backend == XndBackend:
+    if XndBackend is not None and backend == XndBackend:
         assert ret.dtype == ndt(dtype)
     else:
         assert ret.dtype == dtype
@@ -266,7 +267,7 @@ def test_array_creation(backend, method, args, kwargs):
 
     if isinstance(ret, da.Array):
         ret.compute()
-    if backend == XndBackend:
+    if XndBackend is not None and backend == XndBackend:
         assert ret.dtype == ndt(dtype)
     else:
         assert ret.dtype == dtype
