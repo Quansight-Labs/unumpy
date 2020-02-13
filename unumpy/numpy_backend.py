@@ -33,8 +33,8 @@ def __ua_function__(method, args, kwargs):
 @wrap_single_convertor
 def __ua_convert__(value, dispatch_type, coerce):
     if dispatch_type is ndarray:
-        if not coerce:
-            return value
+        if not coerce and not isinstance(value, np.ndarray) and value is not None:
+            return NotImplemented
 
         return np.asarray(value) if value is not None else None
 
