@@ -460,6 +460,18 @@ def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
+def _ptp_default(a, axis=None, out=None, keepdims=False):
+    result = max(a, axis=axis, out=out, keepdims=keepdims)
+    result -= min(a, axis=axis, out=None, keepdims=keepdims)
+    return result
+
+
+@create_numpy(_reduce_argreplacer, default=_ptp_default)
+@all_of_type(ndarray)
+def ptp(a, axis=None, out=None, keepdims=False):
+    return (a, mark_non_coercible(out))
+
+
 # set routines
 @create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
@@ -554,6 +566,38 @@ def broadcast_arrays(*args, subok=False):
 @all_of_type(ndarray)
 def broadcast_to(array, shape, subok=False):
     return (array,)
+
+
+def _meshgrid_default(*args, indexing="xy", sparse=False, copy=True):
+    ndim = len(args)
+
+    if indexing not in ["xy", "ij"]:
+        raise ValueError("Valid values for `indexing` are 'xy' and 'ij'.")
+
+    s0 = (1,) * ndim
+    output = [
+        asarray(x).reshape(s0[:i] + (-1,) + s0[i + 1 :]) for i, x in enumerate(args)
+    ]
+
+    if indexing == "xy" and ndim > 1:
+        # switch first and second axis
+        output[0].shape = (1, -1) + s0[2:]
+        output[1].shape = (-1, 1) + s0[2:]
+
+    if not sparse:
+        # Return the full N-D matrix (not only the 1-D vector)
+        output = broadcast_arrays(*output, subok=True)
+
+    if copy:
+        output = [x.copy() for x in output]
+
+    return output
+
+
+@create_numpy(_args_argreplacer, default=_meshgrid_default)
+@all_of_type(ndarray)
+def meshgrid(*args, indexing="xy", sparse=False, copy=True):
+    return args
 
 
 def _first_argreplacer(args, kwargs, arrays1):
@@ -673,6 +717,42 @@ def searchsorted(a, v, side="left", sorter=None):
 @all_of_type(ndarray)
 def compress(condition, a, axis=None, out=None):
     return (condition, a, out)
+
+
+def _linspace_argreplacer(args, kwargs, arrays):
+    def func(a, b, num=50, endpoint=True, retstep=False, dtype=None, axis=0):
+        kw_out = dict(num=num, endpoint=endpoint, retstep=retstep, axis=axis)
+        kw_out["dtype"] = arrays[2]
+        return arrays[:2], kw_out
+
+    return func(*args, **kwargs)
+
+
+@create_numpy(_linspace_argreplacer)
+@all_of_type(ndarray)
+def linspace(start, stop, num=50, endpoint=True, retstep=False, dtype=None, axis=0):
+    return (start, stop, mark_dtype(dtype))
+
+
+def _logspace_argreplacer(args, kwargs, arrays):
+    def func(a, b, num=50, endpoint=True, base=10, dtype=None, axis=0):
+        kw_out = dict(num=num, endpoint=endpoint, base=base, axis=axis)
+        kw_out["dtype"] = arrays[2]
+        return arrays[:2], kw_out
+
+    return func(*args, **kwargs)
+
+
+def _logspace_default(start, stop, num=50, endpoint=True, base=10, dtype=None, axis=0):
+    return base ** linspace(
+        start, stop, num=num, endpoint=endpoint, dtype=dtype, axis=axis
+    )
+
+
+@create_numpy(_logspace_argreplacer, default=_logspace_default)
+@all_of_type(ndarray)
+def logspace(start, stop, num=50, endpoint=True, base=10, dtype=None, axis=0):
+    return (start, stop, mark_dtype(dtype))
 
 
 @create_numpy(
@@ -855,6 +935,46 @@ def _vstack_default(tup):
 @all_of_type(ndarray)
 def vstack(tup):
     return tup
+
+
+def _diff_default(a, n=1, axis=-1):
+    if n == 0:
+        return a
+    if n < 0:
+        raise ValueError("order must be non-negative but got " + repr(n))
+
+    a = asarray(a)
+    nd = a.ndim
+    if nd == 0:
+        raise ValueError("diff requires input that is at least one dimensional")
+    if axis < -nd or axis >= nd:
+        raise ValueError("axis out of range")
+    axis = axis % nd
+
+    slice1 = [slice(None)] * nd
+    slice2 = [slice(None)] * nd
+    slice1[axis] = slice(1, None)
+    slice2[axis] = slice(None, -1)
+    slice1 = tuple(slice1)
+    slice2 = tuple(slice2)
+
+    op = not_equal if a.dtype.kind == "b" else subtract
+    for _ in range(n):
+        a = op(a[slice1], a[slice2])
+
+    return a
+
+
+@create_numpy(_first_argreplacer, default=_diff_default)
+@all_of_type(ndarray)
+def diff(a, n=1, axis=-1):
+    return a
+
+
+@create_numpy(_args_argreplacer)
+@all_of_type(ndarray)
+def gradient(a, *varargs, edge_order=1, axis=None):
+    return (a,) + varargs
 
 
 class _Recurser(object):

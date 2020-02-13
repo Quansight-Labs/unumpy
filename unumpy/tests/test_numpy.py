@@ -84,6 +84,8 @@ def backend(request):
         (np.add, ([1], [2]), {}),  # type: ignore
         (np.sin, ([1.0],), {}),  # type: ignore
         (np.arange, (5, 20, 5), {}),
+        (np.arange, (5, 20), {}),
+        (np.arange, (5,), {}),
     ],
 )
 def test_ufuncs_coerce(backend, method, args, kwargs):
@@ -132,6 +134,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nanargmax, ([1, 3, 2],), {}),
         (np.nanmin, ([1, 3, 2],), {}),
         (np.nanmax, ([1, 3, 2],), {}),
+        (np.ptp, ([1, 3, 2],), {}),
         (np.unique, ([1, 2, 2],), {}),
         (np.in1d, ([1], [1, 2, 2]), {}),
         (np.isin, ([1], [1, 2, 2]), {}),
@@ -168,6 +171,9 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.compress, ([False, True], [[1, 2], [3, 4], [5, 6]], 1), {}),
         (np.extract, ([True, False, True, False], [0, 1, 2, 3]), {}),
         (np.count_nonzero, ([True, False, True, False],), {}),
+        (np.linspace, (0, 100, 200), {}),
+        (np.logspace, (0, 4, 200), {}),
+        (np.diff, ([1, 3, 2],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -223,8 +229,10 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
     "method, args, kwargs",
     [
         (np.broadcast_arrays, ([1, 2], [[3, 4]]), {}),
+        (np.meshgrid, ([1, 2, 3], [4, 5], [0, 1]), {}),
         (np.nonzero, ([3, 1, 2, 4],), {}),
         (np.where, ([[3, 1, 2, 4]],), {}),
+        (np.gradient, ([[0, 1, 2], [3, 4, 5], [6, 7, 8]],), {}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):

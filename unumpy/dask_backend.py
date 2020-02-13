@@ -80,9 +80,6 @@ _implementations: Dict = {
     unumpy.ones: wrap_uniform_create(unumpy.ones),
     unumpy.zeros: wrap_uniform_create(unumpy.zeros),
     unumpy.full: wrap_uniform_create(unumpy.full),
-    unumpy.arange: lambda start, stop=None, step=None, **kw: da.arange(
-        start, stop, step, **kw
-    ),
 }
 
 
