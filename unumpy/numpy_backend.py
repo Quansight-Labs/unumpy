@@ -43,7 +43,7 @@ def __ua_convert__(value, dispatch_type, coerce):
 
     if dispatch_type is dtype:
         try:
-            return np.dtype(str(value))
+            return np.dtype(str(value)) if value is not None else None
         except TypeError:
             return np.dtype(value)
 
