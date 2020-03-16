@@ -19,7 +19,7 @@ LIST_BACKENDS = [
     (DaskBackend, (da.Array, onp.generic)),
     (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
     pytest.param(
-        (TorchBackend, torch.Tensor),
+        (TorchBackend, (torch.Tensor,)),
         marks=pytest.mark.xfail(reason="PyTorch not fully NumPy compatible."),
     ),
 ]
@@ -32,7 +32,7 @@ try:
     import xnd
     from ndtypes import ndt
 
-    LIST_BACKENDS.append((XndBackend, xnd.xnd))
+    LIST_BACKENDS.append((XndBackend, (xnd.xnd,)))
     FULLY_TESTED_BACKENDS.append(XndBackend)
 except ImportError:
     XndBackend = None  # type: ignore
@@ -174,6 +174,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.linspace, (0, 100, 200), {}),
         (np.logspace, (0, 4, 200), {}),
         (np.diff, ([1, 3, 2],), {}),
+        (np.isclose, ([1, 3, 2], [3, 2, 1]), {}),
+        (np.allclose, ([1, 3, 2], [3, 2, 1]), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -187,9 +189,11 @@ def test_functions_coerce(backend, method, args, kwargs):
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
     if method is np.shape:
-        assert isinstance(ret, tuple)
+        assert isinstance(ret, tuple) and all(isinstance(s, int) for s in ret)
     elif method in (np.ndim, np.size):
         assert isinstance(ret, int)
+    elif method is np.allclose:
+        assert isinstance(ret, (bool,) + types)
     else:
         assert isinstance(ret, types)
 

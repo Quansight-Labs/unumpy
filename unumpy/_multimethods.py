@@ -367,37 +367,37 @@ def reduce_impl(red_ufunc: ufunc):
     return inner
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["add"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(add))
 @all_of_type(ndarray)
 def sum(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["multiply"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(multiply))
 @all_of_type(ndarray)
 def prod(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["minimum"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(minimum))
 @all_of_type(ndarray)
 def min(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["maximum"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(maximum))
 @all_of_type(ndarray)
 def max(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["logical_or"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_or))
 @all_of_type(ndarray)
 def any(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(globals()["logical_and"]))
+@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_and))
 @all_of_type(ndarray)
 def all(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
@@ -1086,7 +1086,31 @@ def _block_argreplacer(args, kwargs, d):
     return (block(*args, **kwargs),), {}
 
 
-@create_numpy(_block_argreplacer)
+@create_numpy(_block_argreplacer, default=_block_default)
 @all_of_type(ndarray)
 def block(arrays):
     yield from _block_arg_extractor(arrays)
+
+
+def _isclose_default(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
+    ret = absolute(a - b) <= (atol + rtol * absolute(b))
+    if equal_nan:
+        ret |= isnan(a) & isnan(b)
+
+    return ret
+
+
+@create_numpy(_first2argreplacer, default=_isclose_default)
+@all_of_type(ndarray)
+def isclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
+    return a, b
+
+
+def _allclose_default(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
+    return all(isclose(a, b, rtol=rtol, atol=atol, equal_nan=equal_nan))
+
+
+@create_numpy(_first2argreplacer, default=_allclose_default)
+@all_of_type(ndarray)
+def allclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
+    return a, b
