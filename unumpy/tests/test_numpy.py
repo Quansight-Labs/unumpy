@@ -69,6 +69,7 @@ EXCEPTIONS = {
     (DaskBackend, np.sort_complex),
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
+    (XndBackend, np.reciprocal),
 }
 
 
@@ -285,3 +286,46 @@ def test_array_creation(backend, method, args, kwargs):
         assert ret.dtype == ndt(dtype)
     else:
         assert ret.dtype == dtype
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs, res",
+    [
+        (np.add, ([1, 2], [3, 4]), {}, [4, 6]),
+        (np.subtract, ([3, 4], [1, 2]), {}, [2, 2]),
+        (np.multiply, ([1, 2], [4, 3]), {}, [4, 6]),
+        (np.divide, ([6, 1], [3, 2]), {}, [2.0, 0.5]),
+        (np.true_divide, ([6, 1], [3, 2]), {}, [2.0, 0.5]),
+        (np.power, ([2, 3], [3, 2]), {}, [8, 9]),
+        (np.positive, ([1, -2],), {}, [1, -2]),
+        (np.negative, ([-2, 3],), {}, [2, -3]),
+        (np.conj, ([1.0 + 2.0j, -1.0 - 1j],), {}, [1.0 - 2.0j, -1.0 + 1j]),
+        (np.exp, ([0, 1, 2],), {}, [1.0, 2.718281828459045, 7.38905609893065]),
+        (np.exp2, ([3, 4],), {}, [8, 16]),
+        (np.log, ([1.0, np.e, np.e ** 2],), {}, [0.0, 1.0, 2.0]),
+        (np.log2, ([1, 2, 2 ** 4],), {}, [0.0, 1.0, 4.0]),
+        (np.log10, ([1e-5, -3.0],), {}, [-5.0, np.NaN]),
+        (np.sqrt, ([1, 4, 9],), {}, [1, 2, 3]),
+        (np.square, ([2, 3, 4],), {}, [4, 9, 16]),
+        (np.cbrt, ([1, 8, 27],), {}, [1.0, 2.0, 3.0]),
+        (np.reciprocal, ([1.0, 2.0, 4.0],), {}, [1.0, 0.5, 0.25]),
+        (
+            np.broadcast_to,
+            ([1, 2, 3], (3, 3)),
+            {},
+            np.array([[1, 2, 3], [1, 2, 3], [1, 2, 3]]),
+        ),
+    ],
+)
+def test_ufuncs_results(backend, method, args, kwargs, res):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method(*args, **kwargs)
+
+            res = np.asarray(res)
+            assert np.allclose(ret, res, equal_nan=True)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and backend is not XndBackend:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")

@@ -7,6 +7,7 @@ create_numpy = functools.partial(create_multimethod, domain="numpy")
 
 e = 2.718281828459045
 pi = 3.141592653589793
+NaN = float("nan")
 
 
 def _identity_argreplacer(args, kwargs, arrays):

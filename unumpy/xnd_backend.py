@@ -16,8 +16,14 @@ try:
 
     __ua_domain__ = "numpy"
 
+    def gucall(self, *args, **kwargs):
+        try:
+            return self(*args, **kwargs)
+        except (TypeError, ValueError):
+            return NotImplemented
+
     _implementations: Dict = {
-        unumpy.ufunc.__call__: gu.gufunc.__call__,
+        unumpy.ufunc.__call__: gucall,
         unumpy.ufunc.reduce: gu.reduce,
     }
 

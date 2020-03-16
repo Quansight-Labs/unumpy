@@ -1,7 +1,6 @@
 name: uarray_min
 channels:
   - pytorch
-  - defaults
   - conda-forge
 dependencies:
   - python=3.7
