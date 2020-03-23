@@ -492,9 +492,10 @@ def in1d(element, test_elements, assume_unique=False, invert=False):
 
 
 def _isin_default(element, test_elements, assume_unique=False, invert=False):
-    return in1d(
-        element, test_elements, assume_unique=assume_unique, invert=invert
-    ).reshape(element.shape)
+    return reshape(
+        in1d(element, test_elements, assume_unique=assume_unique, invert=invert),
+        shape(element),
+    )
 
 
 @create_numpy(_first2argreplacer, default=_isin_default)
@@ -582,13 +583,15 @@ def _meshgrid_default(*args, indexing="xy", sparse=False, copy=True):
 
     s0 = (1,) * ndim
     output = [
-        asarray(x).reshape(s0[:i] + (-1,) + s0[i + 1 :]) for i, x in enumerate(args)
+        reshape(asarray(x), s0[:i] + (-1,) + s0[i + 1 :]) for i, x in enumerate(args)
     ]
 
     if indexing == "xy" and ndim > 1:
         # switch first and second axis
-        output[0].shape = (1, -1) + s0[2:]
-        output[1].shape = (-1, 1) + s0[2:]
+        output = (
+            reshape(output[0], (1, -1) + s0[2:]),
+            reshape(output[1], (1, -1) + s0[2:]),
+        )
 
     if not sparse:
         # Return the full N-D matrix (not only the 1-D vector)
@@ -950,7 +953,7 @@ def _diff_default(a, n=1, axis=-1):
         raise ValueError("order must be non-negative but got " + repr(n))
 
     a = asarray(a)
-    nd = a.ndim
+    nd = ndim(a)
     if nd == 0:
         raise ValueError("diff requires input that is at least one dimensional")
     if axis < -nd or axis >= nd:
@@ -1053,7 +1056,7 @@ def _block_default(arrays):
         # convert all the arrays to ndarrays
         arrays = rec.map_reduce(arrays, f_map=asarray, f_reduce=list)
 
-        elem_ndim = rec.map_reduce(arrays, f_map=lambda xi: xi.ndim, f_reduce=max)
+        elem_ndim = rec.map_reduce(arrays, f_map=lambda xi: ndim(xi), f_reduce=max)
         ndim = builtins.max(list_ndim, elem_ndim)
         first_axis = ndim - list_ndim
         arrays = rec.map_reduce(
