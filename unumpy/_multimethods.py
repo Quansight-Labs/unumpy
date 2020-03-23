@@ -86,6 +86,8 @@ def method_impl(method):
 
         return NotImplemented
 
+    return func
+
 
 def _ufunc_argreplacer(args, kwargs, arrays):
     self = args[0]
@@ -671,7 +673,13 @@ def argwhere(a):
     return (a,)
 
 
-@create_numpy(_self_argreplacer, default=method_impl("ravel"))
+@create_numpy(_self_argreplacer, default=method_impl("reshape"))
+@all_of_type(ndarray)
+def reshape(a, newshape, order="C"):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer, default=lambda a: reshape(a, -1))
 @all_of_type(ndarray)
 def ravel(a):
     return (a,)
@@ -855,12 +863,6 @@ def rollaxis(a, axis, start=0):
 @create_numpy(_self_argreplacer, default=_moveaxis_default)
 @all_of_type(ndarray)
 def moveaxis(a, source, destination):
-    return (a,)
-
-
-@create_numpy(_self_argreplacer, default=method_impl("reshape"))
-@all_of_type(ndarray)
-def reshape(a, newshape, order="C"):
     return (a,)
 
 
