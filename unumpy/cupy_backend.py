@@ -25,14 +25,17 @@ try:
 
     @wrap_single_convertor
     def __ua_convert__(value, dispatch_type, coerce):
-        if dispatch_type is ndarray:
-            if not coerce:
-                return value
-
-            return cp.asarray(value) if value is not None else None
-
         if dispatch_type is ufunc and hasattr(cp, value.name):
             return getattr(cp, value.name)
+
+        if value is None:
+            return None
+
+        if dispatch_type is ndarray:
+            if not coerce and not isinstance(value, cp.ndarray):
+                return NotImplemented
+
+            return cp.asarray(value)
 
         return value
 
