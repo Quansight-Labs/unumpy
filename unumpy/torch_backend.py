@@ -49,14 +49,17 @@ def __ua_function__(method, args, kwargs):
 
 @wrap_single_convertor
 def __ua_convert__(value, dispatch_type, coerce):
-    if dispatch_type is ndarray:
-        if not coerce:
-            return value
-
-        return asarray(value) if value is not None else None
-
     if dispatch_type is ufunc and value in _ufunc_mapping:
         return _ufunc_mapping[value]
+
+    if value is None:
+        return None
+
+    if dispatch_type is ndarray:
+        if not coerce and not torch.is_tensor(value):
+            return NotImplemented
+
+        return asarray(value) if value is not None else None
 
     return value
 

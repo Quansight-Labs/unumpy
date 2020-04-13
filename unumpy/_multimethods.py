@@ -1004,10 +1004,10 @@ def _diff_default(a, n=1, axis=-1):
     return a
 
 
-@create_numpy(_first_argreplacer, default=_diff_default)
+@create_numpy(_self_argreplacer, default=_diff_default)
 @all_of_type(ndarray)
 def diff(a, n=1, axis=-1):
-    return a
+    return (a,)
 
 
 @create_numpy(_args_argreplacer)
@@ -1050,6 +1050,8 @@ class _Recurser(object):
 
 
 def _block_default(arrays):
+    import unumpy as np
+
     rec = _Recurser(recurse_if=lambda x: type(x) is list)
 
     list_ndim = None
@@ -1086,7 +1088,9 @@ def _block_default(arrays):
         # convert all the arrays to ndarrays
         arrays = rec.map_reduce(arrays, f_map=asarray, f_reduce=list)
 
-        elem_ndim = rec.map_reduce(arrays, f_map=lambda xi: ndim(xi), f_reduce=max)
+        elem_ndim = rec.map_reduce(
+            arrays, f_map=lambda xi: np.ndim(xi), f_reduce=builtins.max
+        )
         ndim = builtins.max(list_ndim, elem_ndim)
         first_axis = ndim - list_ndim
         arrays = rec.map_reduce(
@@ -1095,7 +1099,7 @@ def _block_default(arrays):
 
         return rec.map_reduce(
             arrays,
-            f_reduce=lambda xs, axis: concatenate(list(xs), axis=axis),
+            f_reduce=lambda xs, axis: concatenate(list(xs), axis=axis - 1),
             f_kwargs=lambda axis: dict(axis=axis + 1),
             axis=first_axis,
         )

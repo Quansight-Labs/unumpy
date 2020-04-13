@@ -95,10 +95,13 @@ def __ua_function__(method, args, kwargs):
 
 @wrap_single_convertor
 def __ua_convert__(value, dispatch_type, coerce):
+    if dispatch_type is not ufunc and value is None:
+        return None
+
     if dispatch_type is ndarray:
-        if not coerce:
-            return value
-        return da.asarray(value) if value is not None else None
+        if not coerce and not isinstance(value, da.Array):
+            return NotImplemented
+        return da.asarray(value)
 
     return value
 

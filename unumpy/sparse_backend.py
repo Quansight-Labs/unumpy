@@ -12,9 +12,18 @@ _ufunc_mapping: Dict[ufunc, np.ufunc] = {}
 __ua_domain__ = "numpy"
 
 
+def array(x, *args, **kwargs):
+    if isinstance(x, sparse.SparseArray):
+        return x
+
+    return sparse.COO(np.asarray(x))
+
+
 _implementations: Dict = {
     unumpy.ufunc.__call__: np.ufunc.__call__,
     unumpy.ufunc.reduce: np.ufunc.reduce,
+    unumpy.array: array,
+    unumpy.asarray: array,
 }
 
 
@@ -30,20 +39,21 @@ def __ua_function__(method, args, kwargs):
 
 @wrap_single_convertor
 def __ua_convert__(value, dispatch_type, coerce):
+    if dispatch_type is ufunc:
+        return getattr(np, value.name)
+
+    if value is None:
+        return None
+
     if dispatch_type is ndarray:
         if not coerce:
-            return value
-
-        if value is None:
-            return None
+            if not isinstance(value, sparse.SparseArray):
+                return NotImplemented
 
         if isinstance(value, sparse.SparseArray):
             return value
 
         return sparse.as_coo(np.asarray(value))
-
-    if dispatch_type is ufunc:
-        return getattr(np, value.name)
 
     return value
 

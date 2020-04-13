@@ -35,14 +35,20 @@ try:
 
     @wrap_single_convertor
     def __ua_convert__(value, dispatch_type, coerce):
-        if dispatch_type is ndarray:
-            return convert(value, coerce=coerce) if value is not None else None
-
         if dispatch_type is ufunc and hasattr(fn, value.name):
             return getattr(fn, value.name)
 
+        if value is None:
+            return None
+
+        if dispatch_type is ndarray:
+            if not coerce and not isinstance(value, xnd.xnd):
+                return NotImplemented
+
+            return convert(value, coerce=coerce)
+
         if dispatch_type is dtype:
-            return ndt(str(value)) if value is not None else None
+            return ndt(str(value))
 
         return NotImplemented
 
