@@ -260,6 +260,8 @@ def test_multiple_output(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.empty, (2,), {}),
+        (np.empty_like, (np.array([1, 2, 3]),), {}),
         (np.eye, (2,), {}),
         (np.full, ((1, 2, 3), 1.3), {}),
         (np.ones, ((1, 2, 3),), {}),

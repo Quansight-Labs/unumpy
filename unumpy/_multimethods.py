@@ -323,6 +323,36 @@ trunc = ufunc("trunc", 1, 1)
 
 
 @create_numpy(_dtype_argreplacer)
+def empty(shape, dtype="float64", order="C"):
+    return (mark_dtype(dtype),)
+
+
+def _self_dtype_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, *args, dtype=None, **kwargs):
+        out_kw = kwargs.copy()
+        out_kw["dtype"] = dispatchables[1]
+
+        return (dispatchables[0],) + args, out_kw
+
+    return replacer(*args, **kwargs)
+
+
+def _empty_like_default(prototype, dtype=None, order="K", subok=True, shape=None):
+    import unumpy as np
+
+    out_shape = np.shape(prototype) if shape is None else shape
+    out_dtype = prototype.dtype if dtype is None else dtype
+
+    return empty(out_shape, dtype=out_dtype)
+
+
+@create_numpy(_self_dtype_argreplacer, default=_empty_like_default)
+@all_of_type(ndarray)
+def empty_like(prototype, dtype=None, order="K", subok=True, shape=None):
+    return (prototype, mark_dtype(dtype))
+
+
+@create_numpy(_dtype_argreplacer)
 def full(shape, fill_value, dtype=None, order="C"):
     return (mark_dtype(dtype),)
 
