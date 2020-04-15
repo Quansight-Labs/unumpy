@@ -8,7 +8,7 @@ import sparse
 import unumpy.numpy_backend as NumpyBackend
 
 import unumpy.torch_backend as TorchBackend
-import unumpy.dask_backend as DaskBackend
+from unumpy.dask_backend import DaskBackend
 import unumpy.sparse_backend as SparseBackend
 
 ua.set_global_backend(NumpyBackend)
@@ -16,7 +16,7 @@ ua.set_global_backend(NumpyBackend)
 dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
     (NumpyBackend, (onp.ndarray, onp.generic)),
-    (DaskBackend, (da.Array, onp.generic)),
+    (DaskBackend(), (da.Array, onp.generic)),
     (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
     pytest.param(
         (TorchBackend, (torch.Tensor,)),

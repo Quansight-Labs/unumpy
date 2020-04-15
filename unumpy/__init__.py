@@ -16,16 +16,16 @@ For example, the following is currently possible:
 
 >>> import uarray as ua
 >>> import unumpy as np
->>> import unumpy.dask_backend as dask_backend
->>> import unumpy.sparse_backend as sparse_backend
+>>> from unumpy.dask_backend import DaskBackend
+>>> import unumpy.sparse_backend as SparseBackend
 >>> import sparse, dask.array as da
 >>> def main():
 ...     x = np.zeros(5)
 ...     return np.exp(x)
->>> with ua.set_backend(dask_backend):
+>>> with ua.set_backend(DaskBackend()):
 ...     isinstance(main(), da.core.Array)
 True
->>> with ua.set_backend(sparse_backend):
+>>> with ua.set_backend(SparseBackend):
 ...     isinstance(main(), sparse.SparseArray)
 True
 
@@ -143,7 +143,7 @@ following:
 
 In this form, one could do something like the following to use the meta-backend:
 
->>> with ua.set_backend(sparse_backend), ua.set_backend(dask_backend):
+>>> with ua.set_backend(DaskBackend(inner=SparseBackend)):
 ...     x = np.zeros((2000, 2000))
 ...     isinstance(x, da.Array)
 ...     isinstance(x.compute(), sparse.SparseArray)

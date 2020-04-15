@@ -3,7 +3,7 @@ import dask.array as da
 from uarray import (
     Dispatchable,
     wrap_single_convertor,
-    skip_backend,
+    set_backend,
     get_state,
     set_state,
 )
@@ -17,101 +17,96 @@ import random
 
 from typing import Dict
 
-_ufunc_mapping: Dict[ufunc, np.ufunc] = {}
-__ua_domain__ = "numpy"
 
+class DaskBackend:
+    _ufunc_mapping: Dict[ufunc, np.ufunc] = {}
+    __ua_domain__ = "numpy"
 
-def wrap_current_state(func):
-    state = get_state()
+    def __init__(self, inner=None):
+        from unumpy import numpy_backend as NumpyBackend
 
-    @functools.wraps(func)
-    def wrapped(*a, **kw):
-        with set_state(state):
-            return func(*a, **kw)
+        _implementations: Dict = {
+            unumpy.ufunc.__call__: self.wrap_map_blocks(unumpy.ufunc.__call__),
+            unumpy.ones: self.wrap_uniform_create(unumpy.ones),
+            unumpy.zeros: self.wrap_uniform_create(unumpy.zeros),
+            unumpy.full: self.wrap_uniform_create(unumpy.full),
+        }
 
-    return wrapped
+        self._implementations = _implementations
+        self._inner = NumpyBackend if inner is None else inner
 
+    @staticmethod
+    def _wrap_current_state(func):
+        state = get_state()
 
-def wrap_map_blocks(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        with skip_backend(sys.modules[__name__]):
-            return da.map_blocks(wrap_current_state(func), *args, **kwargs)
+        @functools.wraps(func)
+        def wrapped(*a, **kw):
+            with set_state(state):
+                return func(*a, **kw)
 
-    return wrapped
+        return wrapped
 
+    def wrap_map_blocks(self, func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            with set_backend(self._inner):
+                return da.map_blocks(self._wrap_current_state(func), *args, **kwargs)
 
-def wrap_uniform_create(func):
-    @functools.wraps(func)
-    def wrapped(shape, *args, **kwargs):
-        if isinstance(shape, collections.abc.Iterable):
-            shape = tuple(int(s) for s in shape)
-        else:
-            shape = (int(shape),)
+        return wrapped
 
-        # Estimate 100 Mi elements per block
-        blocksize = int((100 * (2 ** 20)) ** (1 / len(shape)))
+    def wrap_uniform_create(self, func):
+        @functools.wraps(func)
+        def wrapped(shape, *args, **kwargs):
+            if isinstance(shape, collections.abc.Iterable):
+                shape = tuple(int(s) for s in shape)
+            else:
+                shape = (int(shape),)
 
-        chunks = []
-        for l in shape:
-            chunks.append([])
-            while l > 0:
-                s = max(min(blocksize, l), 0)
-                chunks[-1].append(s)
-                l -= s
+            # Estimate 100 Mi elements per block
+            blocksize = int((100 * (2 ** 20)) ** (1 / len(shape)))
 
-        name = func.__name__ + "-" + hex(random.randrange(2 ** 64))
-        dsk = {}
-        with skip_backend(sys.modules[__name__]):
-            for chunk_id in itertools.product(*map(lambda x: range(len(x)), chunks)):
-                shape = tuple(chunks[i][j] for i, j in enumerate(chunk_id))
-                dsk[(name,) + chunk_id] = func(shape, *args, **kwargs)
+            chunks = []
+            for l in shape:
+                chunks.append([])
+                while l > 0:
+                    s = max(min(blocksize, l), 0)
+                    chunks[-1].append(s)
+                    l -= s
 
-            meta = func(tuple(0 for _ in shape), *args, **kwargs)
-            dtype = str(meta.dtype)
+            name = func.__name__ + "-" + hex(random.randrange(2 ** 64))
+            dsk = {}
+            with set_backend(self._inner):
+                for chunk_id in itertools.product(
+                    *map(lambda x: range(len(x)), chunks)
+                ):
+                    shape = tuple(chunks[i][j] for i, j in enumerate(chunk_id))
+                    dsk[(name,) + chunk_id] = func(shape, *args, **kwargs)
 
-        return da.Array(dsk, name, chunks, dtype=dtype, meta=meta)
+                meta = func(tuple(0 for _ in shape), *args, **kwargs)
+                dtype = str(meta.dtype)
 
-    return wrapped
+            return da.Array(dsk, name, chunks, dtype=dtype, meta=meta)
 
+        return wrapped
 
-_implementations: Dict = {
-    unumpy.ufunc.__call__: wrap_map_blocks(unumpy.ufunc.__call__),
-    unumpy.ones: wrap_uniform_create(unumpy.ones),
-    unumpy.zeros: wrap_uniform_create(unumpy.zeros),
-    unumpy.full: wrap_uniform_create(unumpy.full),
-}
+    def __ua_function__(self, method, args, kwargs):
+        if method in self._implementations:
+            return self._implementations[method](*args, **kwargs)
 
-
-def __ua_function__(method, args, kwargs):
-    if method in _implementations:
-        return _implementations[method](*args, **kwargs)
-
-    if not hasattr(da, method.__name__):
-        return NotImplemented
-
-    return getattr(da, method.__name__)(*args, **kwargs)
-
-
-@wrap_single_convertor
-def __ua_convert__(value, dispatch_type, coerce):
-    if dispatch_type is not ufunc and value is None:
-        return None
-
-    if dispatch_type is ndarray:
-        if not coerce and not isinstance(value, da.Array):
-            return NotImplemented
-        return da.asarray(value)
-
-    return value
-
-
-def replace_self(func):
-    @functools.wraps(func)
-    def inner(self, *args, **kwargs):
-        if self not in _ufunc_mapping:
+        if not hasattr(da, method.__name__):
             return NotImplemented
 
-        return func(_ufunc_mapping[self], *args, **kwargs)
+        return getattr(da, method.__name__)(*args, **kwargs)
 
-    return inner
+    @staticmethod
+    @wrap_single_convertor
+    def __ua_convert__(value, dispatch_type, coerce):
+        if dispatch_type is not ufunc and value is None:
+            return None
+
+        if dispatch_type is ndarray:
+            if not coerce and not isinstance(value, da.Array):
+                return NotImplemented
+            return da.asarray(value)
+
+        return value
