@@ -2,7 +2,7 @@ import numpy as np
 import dask.array as da
 from uarray import (
     Dispatchable,
-    wrap_single_convertor,
+    wrap_single_convertor_instance,
     set_backend,
     get_state,
     set_state,
@@ -26,6 +26,7 @@ class DaskBackend:
         from unumpy import numpy_backend as NumpyBackend
 
         _implementations: Dict = {
+            unumpy.asarray: self.wrap_map_blocks(unumpy.asarray),
             unumpy.ufunc.__call__: self.wrap_map_blocks(unumpy.ufunc.__call__),
             unumpy.ones: self.wrap_uniform_create(unumpy.ones),
             unumpy.zeros: self.wrap_uniform_create(unumpy.zeros),
@@ -98,15 +99,18 @@ class DaskBackend:
 
         return getattr(da, method.__name__)(*args, **kwargs)
 
-    @staticmethod
-    @wrap_single_convertor
-    def __ua_convert__(value, dispatch_type, coerce):
+    @wrap_single_convertor_instance
+    def __ua_convert__(self, value, dispatch_type, coerce):
         if dispatch_type is not ufunc and value is None:
             return None
 
         if dispatch_type is ndarray:
             if not coerce and not isinstance(value, da.Array):
                 return NotImplemented
-            return da.asarray(value)
+            ret = da.asarray(value)
+            with set_backend(self._inner):
+                ret = ret.map_blocks(self._wrap_current_state(unumpy.asarray))
+
+            return ret
 
         return value
