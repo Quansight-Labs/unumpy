@@ -177,6 +177,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.diff, ([1, 3, 2],), {}),
         (np.isclose, ([1, 3, 2], [3, 2, 1]), {}),
         (np.allclose, ([1, 3, 2], [3, 2, 1]), {}),
+        (np.diag, ([1, 2, 3],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -331,3 +332,49 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
         if backend in FULLY_TESTED_BACKENDS and backend is not XndBackend:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
+        (np.linalg.multi_dot, ([[0, 1], [[1, 2], [3, 4]], [1, 0]],), {}),
+        (np.linalg.matrix_power, ([[1, 2], [3, 4]], 2), {}),
+        (np.linalg.cholesky, ([[1, -2j], [2j, 5]],), {}),
+        (np.linalg.qr, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.svd, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.eig, ([[1, 1j], [-1j, 1]],), {}),
+        (np.linalg.eigh, ([[1, -2j], [2j, 5]],), {}),
+        (np.linalg.eigvals, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.eigvalsh, ([[1, -2j], [2j, 5]],), {}),
+        (np.linalg.norm, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.cond, ([[1, 0, -1], [0, 1, 0], [1, 0, 1]],), {}),
+        (np.linalg.det, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.matrix_rank, (np.eye(4),), {}),
+        (np.linalg.slogdet, ([[1, 2], [3, 4]],), {}),
+        (np.linalg.solve, ([[3, 1], [1, 2]], [9, 8]), {}),
+        (
+            np.linalg.tensorsolve,
+            (
+                np.eye((2 * 3 * 4)).reshape(2 * 3, 4, 2, 3, 4),
+                np.empty(shape=(2 * 3, 4)),
+            ),
+            {},
+        ),
+        (np.linalg.lstsq, ([[3, 1], [1, 2]], [9, 8]), {"rcond": None}),
+        (np.linalg.inv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
+        (np.linalg.pinv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
+        (np.linalg.tensorinv, (np.eye(4 * 6).reshape((4, 6, 8, 3)),), {}),
+    ],
+)
+def test_linalg(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(NumpyBackend, coerce=True):
+            ret = method(*args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if isinstance(ret, da.Array):
+        ret.compute()

@@ -8,6 +8,8 @@ create_numpy = functools.partial(create_multimethod, domain="numpy")
 e = 2.718281828459045
 pi = 3.141592653589793
 NaN = float("nan")
+inf = float("inf")
+NINF = float("-inf")
 
 
 def _identity_argreplacer(args, kwargs, arrays):
@@ -1154,3 +1156,9 @@ def _allclose_default(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
 @all_of_type(ndarray)
 def allclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
     return a, b
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def diag(v, k=0):
+    return (v,)

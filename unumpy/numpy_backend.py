@@ -1,6 +1,6 @@
 import numpy as np
 from uarray import Dispatchable, wrap_single_convertor
-from unumpy import ufunc, ufunc_list, ndarray, dtype
+from unumpy import ufunc, ufunc_list, ndarray, dtype, linalg
 import unumpy
 import functools
 
@@ -24,10 +24,15 @@ def __ua_function__(method, args, kwargs):
     if method in _implementations:
         return _implementations[method](*args, **kwargs)
 
-    if not hasattr(np, method.__name__):
-        return NotImplemented
+    module = np
+    domain_hierarchy = method.domain.split(".")
+    for d in domain_hierarchy[1:]:
+        module = getattr(module, d)
 
-    return getattr(np, method.__name__)(*args, **kwargs)
+    if hasattr(module, method.__name__):
+        return getattr(module, method.__name__)(*args, **kwargs)
+    else:
+        return NotImplemented
 
 
 @wrap_single_convertor
