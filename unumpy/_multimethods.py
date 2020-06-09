@@ -5,11 +5,17 @@ import builtins
 
 create_numpy = functools.partial(create_multimethod, domain="numpy")
 
-e = 2.718281828459045
-pi = 3.141592653589793
-NaN = float("nan")
+e = 2.718281828459045235360287471352662498
+pi = 3.141592653589793238462643383279502884
+euler_gamma = 0.577215664901532860606512090082402431
+nan = float("nan")
 inf = float("inf")
 NINF = float("-inf")
+PZERO = 0.0
+NZERO = -0.0
+newaxis = None
+NaN = NAN = nan
+Inf = Infinity = PINF = infty = inf
 
 
 def _identity_argreplacer(args, kwargs, arrays):
@@ -308,7 +314,7 @@ fmin = ufunc("fmin", 2, 1)
 
 # Floating functions
 isfinite = ufunc("isfinite", 1, 1)
-isinf = ufunc("greater_equal", 1, 1)
+isinf = ufunc("isinf", 1, 1)
 isnan = ufunc("isnan", 1, 1)
 isnat = ufunc("isnat", 1, 1)
 signbit = ufunc("signbit", 1, 1)
@@ -436,6 +442,54 @@ def any(a, axis=None, out=None, keepdims=False):
 @all_of_type(ndarray)
 def all(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
+
+
+def _self_out_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, *args, out=None, **kwargs):
+        return (dispatchables[0],) + args, {"out": dispatchables[1], **kwargs}
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_self_out_argreplacer, default=lambda x, out=None: equal(x, inf, out=out))
+@all_of_type(ndarray)
+def isposinf(x, out=None):
+    return (x, mark_non_coercible(out))
+
+
+@create_numpy(
+    _self_out_argreplacer, default=lambda x, out=None: equal(x, NINF, out=out)
+)
+@all_of_type(ndarray)
+def isneginf(x, out=None):
+    return (x, mark_non_coercible(out))
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def iscomplex(x):
+    return (x,)
+
+
+@create_numpy(_identity_argreplacer)
+def iscomplexobj(x):
+    return ()
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def isreal(x):
+    return (x,)
+
+
+@create_numpy(_identity_argreplacer)
+def isrealobj(x):
+    return ()
+
+
+@create_numpy(_identity_argreplacer)
+def isscalar(element):
+    return ()
 
 
 @create_numpy(_reduce_argreplacer)
@@ -1156,6 +1210,20 @@ def _allclose_default(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
 @all_of_type(ndarray)
 def allclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
     return a, b
+
+
+@create_numpy(
+    _first2argreplacer, default=lambda a1, a2: shape(a1) == shape(a2) and all(a1 == a2)
+)
+@all_of_type(ndarray)
+def array_equal(a1, a2):
+    return a1, a2
+
+
+@create_numpy(_first2argreplacer, default=lambda a1, a2: all(a1 == a2))
+@all_of_type(ndarray)
+def array_equiv(a1, a2):
+    return a1, a2
 
 
 @create_numpy(_self_argreplacer)

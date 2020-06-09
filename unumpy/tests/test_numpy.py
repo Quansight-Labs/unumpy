@@ -70,6 +70,7 @@ EXCEPTIONS = {
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
     (XndBackend, np.reciprocal),
+    (XndBackend, np.isinf),
 }
 
 
@@ -87,6 +88,7 @@ def backend(request):
         (np.arange, (5, 20, 5), {}),
         (np.arange, (5, 20), {}),
         (np.arange, (5,), {}),
+        (np.isinf, ([np.inf, np.NINF, 1.0, np.nan],), {}),
     ],
 )
 def test_ufuncs_coerce(backend, method, args, kwargs):
@@ -95,7 +97,7 @@ def test_ufuncs_coerce(backend, method, args, kwargs):
         with ua.set_backend(backend, coerce=True):
             ret = method(*args, **kwargs)
     except ua.BackendNotImplementedError:
-        if backend in FULLY_TESTED_BACKENDS:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
@@ -177,6 +179,15 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.diff, ([1, 3, 2],), {}),
         (np.isclose, ([1, 3, 2], [3, 2, 1]), {}),
         (np.allclose, ([1, 3, 2], [3, 2, 1]), {}),
+        (np.isposinf, ([np.NINF, 0.0, np.inf],), {}),
+        (np.isneginf, ([np.NINF, 0.0, np.inf],), {}),
+        (np.iscomplex, ([1 + 1j, 1 + 0j, 4.5, 3, 2, 2j],), {}),
+        (np.iscomplexobj, ([3, 1 + 0j],), {}),
+        (np.isreal, ([1 + 1j, 1 + 0j, 4.5, 3, 2, 2j],), {}),
+        (np.isrealobj, ([3, 1 + 0j],), {}),
+        (np.isscalar, ([3.1],), {}),
+        (np.array_equal, ([1, 2, 3], [1, 2, 3]), {}),
+        (np.array_equiv, ([1, 2], [[1, 2], [1, 2]]), {}),
         (np.diag, ([1, 2, 3],), {}),
     ],
 )
@@ -194,7 +205,16 @@ def test_functions_coerce(backend, method, args, kwargs):
         assert isinstance(ret, tuple) and all(isinstance(s, int) for s in ret)
     elif method in (np.ndim, np.size):
         assert isinstance(ret, int)
-    elif method is np.allclose:
+    elif method in (
+        np.allclose,
+        np.iscomplex,
+        np.iscomplexobj,
+        np.isreal,
+        np.isrealobj,
+        np.isscalar,
+        np.array_equal,
+        np.array_equiv,
+    ):
         assert isinstance(ret, (bool,) + types)
     else:
         assert isinstance(ret, types)
