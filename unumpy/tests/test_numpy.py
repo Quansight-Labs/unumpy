@@ -189,6 +189,11 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.array_equal, ([1, 2, 3], [1, 2, 3]), {}),
         (np.array_equiv, ([1, 2], [[1, 2], [1, 2]]), {}),
         (np.diag, ([1, 2, 3],), {}),
+        (np.diagflat, ([[1, 2], [3, 4]],), {}),
+        (np.copy, ([1, 2, 3],), {}),
+        (np.tril, ([[1, 2], [3, 4]],), {}),
+        (np.triu, ([[1, 2], [3, 4]],), {}),
+        (np.vander, ([1, 2, 3, 5],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -282,15 +287,30 @@ def test_multiple_output(backend, method, args, kwargs):
     "method, args, kwargs",
     [
         (np.empty, (2,), {}),
-        (np.empty_like, (np.array([1, 2, 3]),), {}),
+        (np.empty_like, ([1, 2, 3],), {}),
         (np.eye, (2,), {}),
+        (np.identity, (2,), {}),
         (np.full, ((1, 2, 3), 1.3), {}),
+        (np.full_like, ([1, 2, 3], 2), {}),
         (np.ones, ((1, 2, 3),), {}),
+        (np.ones_like, ([1, 2, 3],), {}),
         (np.zeros, ((1, 2, 3),), {}),
+        (np.zeros_like, ([1, 2, 3],), {}),
+        (np.asanyarray, ([1, 2, 3],), {}),
+        (np.ascontiguousarray, ([1, 2, 3],), {}),
+        (np.frombuffer, (), {}),
+        (np.fromfunction, (lambda i: i + 1,), {"shape": (3,)}),
+        (np.fromiter, (range(1, 4),), {}),
+        (np.fromstring, ("1 2 3",), {"sep": " "}),
+        (np.geomspace, (1, 1000), {"num": 4}),
+        (np.tri, (3, 5, -1), {}),
     ],
 )
 def test_array_creation(backend, method, args, kwargs):
     backend, types = backend
+    if method is np.frombuffer:
+        buffer = onp.array([1, 2, 3]).tobytes()
+        args = args + (buffer,)
     for dtype in dtypes:
         try:
             with ua.set_backend(backend, coerce=True):
@@ -300,6 +320,13 @@ def test_array_creation(backend, method, args, kwargs):
             if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
                 raise
             pytest.xfail(reason="The backend has no implementation for this ufunc.")
+        except TypeError:
+            if method is np.asanyarray:
+                raise pytest.xfail(
+                    reason="The ufunc for this backend got an unexpected keyword."
+                )
+            else:
+                raise
 
     assert isinstance(ret, types)
 

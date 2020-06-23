@@ -1,4 +1,6 @@
 import functools
+import itertools
+from collections.abc import Iterable
 import operator
 from uarray import create_multimethod, mark_as, all_of_type, Dispatchable
 import builtins
@@ -346,9 +348,10 @@ def _self_dtype_argreplacer(args, kwargs, dispatchables):
 
 
 def _empty_like_default(prototype, dtype=None, order="K", subok=True, shape=None):
-    import unumpy as np
+    if order != "K" or subok != True:
+        return NotImplemented
 
-    out_shape = np.shape(prototype) if shape is None else shape
+    out_shape = _shape(prototype) if shape is None else shape
     out_dtype = prototype.dtype if dtype is None else dtype
 
     return empty(out_shape, dtype=out_dtype)
@@ -363,6 +366,22 @@ def empty_like(prototype, dtype=None, order="K", subok=True, shape=None):
 @create_numpy(_dtype_argreplacer)
 def full(shape, fill_value, dtype=None, order="C"):
     return (mark_dtype(dtype),)
+
+
+def _full_like_default(a, fill_value, dtype=None, order="K", subok=True, shape=None):
+    if order != "K" or subok != True:
+        return NotImplemented
+
+    out_shape = _shape(a) if shape is None else shape
+    out_dtype = a.dtype if dtype is None else dtype
+
+    return full(out_shape, fill_value, dtype=out_dtype)
+
+
+@create_numpy(_self_dtype_argreplacer, default=_full_like_default)
+@all_of_type(ndarray)
+def full_like(a, fill_value, dtype=None, order="K", subok=True, shape=None):
+    return (a, mark_dtype(dtype))
 
 
 @create_numpy(_dtype_argreplacer)
@@ -384,6 +403,17 @@ def zeros(shape, dtype=float, order="C"):
 
 
 @create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, dtype=None, order="K", subok=True, shape=None: full_like(
+        a, 0, dtype, order, subok, shape
+    ),
+)
+@all_of_type(ndarray)
+def zeros_like(a, dtype=None, order="K", subok=True, shape=None):
+    return (a, mark_dtype(dtype))
+
+
+@create_numpy(
     _dtype_argreplacer,
     default=lambda shape, dtype, order="C": full(shape, 1, dtype, order),
 )
@@ -391,13 +421,106 @@ def ones(shape, dtype=float, order="C"):
     return (mark_dtype(dtype),)
 
 
+@create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, dtype=None, order="K", subok=True, shape=None: full_like(
+        a, 1, dtype, order, subok, shape
+    ),
+)
+@all_of_type(ndarray)
+def ones_like(a, dtype=None, order="K", subok=True, shape=None):
+    return (a, mark_dtype(dtype))
+
+
 @create_numpy(_dtype_argreplacer)
 def eye(N, M=None, k=0, dtype=float, order="C"):
     return (mark_dtype(dtype),)
 
 
+@create_numpy(_dtype_argreplacer, default=lambda n, dtype=None: eye(n, dtype=dtype))
+def identity(n, dtype=None):
+    return (mark_dtype(dtype),)
+
+
 @create_numpy(_dtype_argreplacer)
 def asarray(a, dtype=None, order=None):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_self_dtype_argreplacer)
+@all_of_type(ndarray)
+def asanyarray(a, dtype=None, order=None):
+    return (a, mark_dtype(dtype))
+
+
+@create_numpy(
+    _dtype_argreplacer,
+    default=lambda a, dtype=None: asarray(a, dtype=dtype, order="C"),
+)
+@all_of_type(ndarray)
+def ascontiguousarray(a, dtype=None):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def copy(a, order="K"):
+    return (a,)
+
+
+@create_numpy(_dtype_argreplacer)
+def frombuffer(buffer, dtype=float, count=-1, offset=0):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_dtype_argreplacer)
+def fromfile(file, dtype=float, count=-1, sep="", offset=0):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_dtype_argreplacer)
+def fromfunction(function, shape, **kwargs):
+    if "dtype" in kwargs:
+        dtype = kwargs["dtype"]
+    else:
+        dtype = float
+
+    return (mark_dtype(dtype),)
+
+
+def _fromiter_default(iterable, dtype, count=-1):
+    if not isinstance(iterable, Iterable):
+        raise TypeError("'%s' object is not iterable" % type(iterable).__name__)
+    if count >= 0:
+        iterable = itertools.islice(iterable, 0, count)
+
+    return array(list(iterable), dtype=dtype)
+
+
+@create_numpy(_dtype_argreplacer, default=_fromiter_default)
+def fromiter(iterable, dtype, count=-1):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_dtype_argreplacer)
+def fromstring(string, dtype=float, count=-1, sep=""):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_dtype_argreplacer)
+def loadtxt(
+    fname,
+    dtype=float,
+    comments="#",
+    delimiter=None,
+    converters=None,
+    skiprows=0,
+    usecols=None,
+    unpack=False,
+    ndmin=0,
+    encoding="bytes",
+    max_rows=None,
+):
     return (mark_dtype(dtype),)
 
 
@@ -820,28 +943,20 @@ def compress(condition, a, axis=None, out=None):
     return (condition, a, out)
 
 
-def _linspace_argreplacer(args, kwargs, arrays):
-    def func(a, b, num=50, endpoint=True, retstep=False, dtype=None, axis=0):
-        kw_out = dict(num=num, endpoint=endpoint, retstep=retstep, axis=axis)
-        kw_out["dtype"] = arrays[2]
-        return arrays[:2], kw_out
+def _first2_dtype_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, b, *args, dtype=None, **kwargs):
+        kw_out = kwargs.copy()
+        kw_out["dtype"] = dispatchables[2]
 
-    return func(*args, **kwargs)
+        return dispatchables[:2] + args, kw_out
+
+    return replacer(*args, **kwargs)
 
 
-@create_numpy(_linspace_argreplacer)
+@create_numpy(_first2_dtype_argreplacer)
 @all_of_type(ndarray)
 def linspace(start, stop, num=50, endpoint=True, retstep=False, dtype=None, axis=0):
     return (start, stop, mark_dtype(dtype))
-
-
-def _logspace_argreplacer(args, kwargs, arrays):
-    def func(a, b, num=50, endpoint=True, base=10, dtype=None, axis=0):
-        kw_out = dict(num=num, endpoint=endpoint, base=base, axis=axis)
-        kw_out["dtype"] = arrays[2]
-        return arrays[:2], kw_out
-
-    return func(*args, **kwargs)
 
 
 def _logspace_default(start, stop, num=50, endpoint=True, base=10, dtype=None, axis=0):
@@ -850,9 +965,15 @@ def _logspace_default(start, stop, num=50, endpoint=True, base=10, dtype=None, a
     )
 
 
-@create_numpy(_logspace_argreplacer, default=_logspace_default)
+@create_numpy(_first2_dtype_argreplacer, default=_logspace_default)
 @all_of_type(ndarray)
 def logspace(start, stop, num=50, endpoint=True, base=10, dtype=None, axis=0):
+    return (start, stop, mark_dtype(dtype))
+
+
+@create_numpy(_first2_dtype_argreplacer)
+@all_of_type(ndarray)
+def geomspace(start, stop, num=50, endpoint=True, dtype=None, axis=0):
     return (start, stop, mark_dtype(dtype))
 
 
@@ -900,6 +1021,9 @@ for key, val in globals().copy().items():
 @all_of_type(ndarray)
 def shape(array):
     return (array,)
+
+
+_shape = shape
 
 
 @create_numpy(_self_argreplacer, default=lambda array: len(shape(array)))
@@ -1230,3 +1354,70 @@ def array_equiv(a1, a2):
 @all_of_type(ndarray)
 def diag(v, k=0):
     return (v,)
+
+
+@create_numpy(_self_argreplacer, default=lambda v, k=0: diag(ravel(v), k))
+@all_of_type(ndarray)
+def diagflat(v, k=0):
+    return (v,)
+
+
+def _tri_default(N, M=None, k=0, dtype=float):
+    if M is None:
+        M = N
+
+    ii, jj = arange(N).reshape(-1, 1), arange(M)
+    mask = jj <= ii + k
+
+    return array(where(mask, 1, 0), dtype=dtype)
+
+
+@create_numpy(_dtype_argreplacer, default=_tri_default)
+def tri(N, M=None, k=0, dtype=float):
+    return (mark_dtype(dtype),)
+
+
+def _tril_default(m, k=0):
+    ii, jj = arange(m.shape[0]).reshape(-1, 1), arange(m.shape[1])
+    mask = jj <= ii + k
+
+    return array(where(mask, m, 0), dtype=m.dtype)
+
+
+@create_numpy(_self_argreplacer, default=_tril_default)
+@all_of_type(ndarray)
+def tril(m, k=0):
+    return (m,)
+
+
+def _triu_default(m, k=0):
+    ii, jj = arange(m.shape[0]).reshape(-1, 1), arange(m.shape[1])
+    mask = jj >= ii + k
+
+    return array(where(mask, m, 0), dtype=m.dtype)
+
+
+@create_numpy(_self_argreplacer, default=_triu_default)
+@all_of_type(ndarray)
+def triu(m, k=0):
+    return (m,)
+
+
+def _vander_default(x, N=None, increasing=False):
+    x = array(x)
+    if N is None:
+        N = len(x)
+
+    arr = zeros((len(x), N)) + x.reshape((-1, 1))
+
+    exps = arange(N)
+    if increasing == False:
+        exps = exps[::-1]
+
+    return array(power(arr, exps), dtype=x.dtype)
+
+
+@create_numpy(_self_argreplacer, default=_vander_default)
+@all_of_type(ndarray)
+def vander(x, N=None, increasing=False):
+    return (x,)

@@ -16,6 +16,10 @@ def array(x, *args, **kwargs):
     if isinstance(x, sparse.SparseArray):
         return x
 
+    if "dtype" in kwargs:
+        dtype = kwargs["dtype"]
+        return sparse.COO(np.asarray(x, dtype=dtype))
+
     return sparse.COO(np.asarray(x))
 
 
