@@ -26,7 +26,6 @@ class DaskBackend:
         from unumpy import numpy_backend as NumpyBackend
 
         _implementations: Dict = {
-            unumpy.asarray: self.wrap_map_blocks(unumpy.asarray),
             unumpy.ufunc.__call__: self.wrap_map_blocks(unumpy.ufunc.__call__),
             unumpy.ones: self.wrap_uniform_create(unumpy.ones),
             unumpy.zeros: self.wrap_uniform_create(unumpy.zeros),
