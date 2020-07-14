@@ -12,7 +12,14 @@ try:
 
     __ua_domain__ = "numpy"
 
-    _implementations: Dict = {unumpy.ufunc.__call__: cp.ufunc.__call__}
+    _implementations: Dict = {}
+
+    def _implements(np_func):
+        def inner(func):
+            _implementations[np_func] = func
+            return func
+
+        return inner
 
     def __ua_function__(method, args, kwargs):
         if method in _implementations:
@@ -48,6 +55,20 @@ try:
             return func(_ufunc_mapping[self], *args, **kwargs)
 
         return inner
+
+    @_implements(unumpy.ascontiguousarray)
+    def _ascontiguousarray(arr, dtype=None):
+        return cp.asarray(arr, dtype=dtype, order="C")
+
+    @_implements(unumpy.asfortranarray)
+    def _asfortranarray(arr, dtype=None):
+        return cp.asarray(arr, dtype=dtype, order="F")
+
+    @_implements(unumpy.ufunc.__call__)
+    def _ufunc_call(self, *args, **kwargs):
+        fname = self.name
+        f = getattr(cp, fname, lambda *a, **kw: NotImplemented)
+        return f(*args, **kwargs)
 
 
 except ImportError:

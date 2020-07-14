@@ -6,6 +6,7 @@ from uarray import (
     set_backend,
     get_state,
     set_state,
+    set_backend,
 )
 from unumpy import ufunc, ufunc_list, ndarray
 import unumpy
@@ -26,11 +27,12 @@ class DaskBackend:
         from unumpy import numpy_backend as NumpyBackend
 
         _implementations: Dict = {
-            unumpy.asarray: self.wrap_map_blocks(unumpy.asarray),
+            unumpy.asarray: self.asarray,
             unumpy.ufunc.__call__: self.wrap_map_blocks(unumpy.ufunc.__call__),
             unumpy.ones: self.wrap_uniform_create(unumpy.ones),
             unumpy.zeros: self.wrap_uniform_create(unumpy.zeros),
             unumpy.full: self.wrap_uniform_create(unumpy.full),
+            unumpy.trim_zeros: self.trim_zeros,
         }
 
         self._implementations = _implementations
@@ -46,6 +48,26 @@ class DaskBackend:
                 return func(*a, **kw)
 
         return wrapped
+
+    def asarray(self, a, dtype=None, order=None):
+        if isinstance(a, da.Array):
+            return self.wrap_map_blocks(unumpy.asarray)(a)
+        with set_backend(self._inner, coerce=True):
+            a = np.asarray(a, dtype=dtype, order=order)
+        return da.from_array(a, asarray=False)
+
+    def trim_zeros(self, filt, trim="fb"):
+        nonzero_idxs = unumpy.nonzero(filt)[0].compute_chunk_sizes()
+
+        if len(nonzero_idxs.compute()) == 0:
+            return unumpy.asarray([], dtype=filt.dtype)
+
+        start, end = None, None
+        if "f" in trim:
+            start = nonzero_idxs[0].compute()
+        if "b" in trim:
+            end = nonzero_idxs[-1].compute() + 1
+        return filt[start:end]
 
     def wrap_map_blocks(self, func):
         @functools.wraps(func)

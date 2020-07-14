@@ -18,9 +18,9 @@ def array(x, *args, **kwargs):
 
     if "dtype" in kwargs:
         dtype = kwargs["dtype"]
-        return sparse.COO(np.asarray(x, dtype=dtype))
+        return sparse.COO.from_numpy(np.asarray(x, dtype=dtype))
 
-    return sparse.COO(np.asarray(x))
+    return sparse.COO.from_numpy(np.asarray(x))
 
 
 _implementations: Dict = {

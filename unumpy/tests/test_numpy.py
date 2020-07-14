@@ -28,21 +28,6 @@ LIST_BACKENDS = [
 FULLY_TESTED_BACKENDS = [NumpyBackend, DaskBackend]
 
 try:
-    import unumpy.xnd_backend as XndBackend
-    import xnd
-    from ndtypes import ndt
-
-    LIST_BACKENDS.append((XndBackend, (xnd.xnd,)))
-    FULLY_TESTED_BACKENDS.append(XndBackend)
-except ImportError:
-    XndBackend = None  # type: ignore
-    LIST_BACKENDS.append(
-        pytest.param(
-            (None, None), marks=pytest.mark.skip(reason="xnd is not importable")
-        )
-    )
-
-try:
     import unumpy.cupy_backend as CupyBackend
     import cupy as cp
 
@@ -53,6 +38,7 @@ except ImportError:
             (None, None), marks=pytest.mark.skip(reason="cupy is not importable")
         )
     )
+    CupyBackend = object()  # type: ignore
 
 
 EXCEPTIONS = {
@@ -69,8 +55,6 @@ EXCEPTIONS = {
     (DaskBackend, np.sort_complex),
     (DaskBackend, np.msort),
     (DaskBackend, np.searchsorted),
-    (XndBackend, np.reciprocal),
-    (XndBackend, np.isinf),
 }
 
 
@@ -149,6 +133,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.stack, (([1, 2], [3, 4]),), {}),
         (np.concatenate, (([1, 2, 3], [3, 4]),), {}),
         (np.broadcast_to, ([1, 2], (2, 2)), {}),
+        (np.expand_dims, ([1, 2], 1), {}),
+        (np.squeeze, ([[[0], [1], [2]]],), {}),
         (np.argsort, ([3, 1, 2, 4],), {}),
         (np.msort, ([3, 1, 2, 4],), {}),
         (np.sort_complex, ([3.0 + 1.0j, 1.0 - 1.0j, 2.0 - 3.0j, 4 - 3.0j],), {}),
@@ -159,6 +145,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.rollaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
         (np.moveaxis, ([[1, 2, 3], [1, 2, 3]], 0, 1), {}),
         (np.column_stack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
+        (np.dstack, (([1, 2, 3], [2, 3, 4]),), {}),
         (np.hstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         (np.vstack, ((((1, 2, 3)), ((1, 2, 3))),), {}),
         (np.block, ([([1, 2, 3]), ([1, 2, 3])],), {}),
@@ -194,6 +181,18 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.tril, ([[1, 2], [3, 4]],), {}),
         (np.triu, ([[1, 2], [3, 4]],), {}),
         (np.vander, ([1, 2, 3, 5],), {}),
+        (np.tile, ([[1, 2], [3, 4]], 2), {}),
+        (np.repeat, ([[1, 2], [3, 4]], 2), {"axis": 0}),
+        (np.delete, ([1, 2, 3], 1), {}),
+        (np.insert, ([1, 2, 3], 2, 0), {"axis": 0}),
+        (np.append, ([1, 2, 3], [4, 5, 6]), {}),
+        (np.resize, ([[1, 2], [3, 4]], (2, 3)), {}),
+        (np.trim_zeros, ([0, 1, 2, 0],), {}),
+        (np.flip, ([[1, 2], [3, 4]],), {"axis": 0}),
+        (np.fliplr, ([[1, 2], [3, 4]],), {}),
+        (np.flipud, ([[1, 2], [3, 4]],), {}),
+        (np.roll, ([1, 2, 3], 1), {}),
+        (np.rot90, ([[1, 2], [3, 4]],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -205,6 +204,25 @@ def test_functions_coerce(backend, method, args, kwargs):
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
+    except TypeError:
+        if backend is CupyBackend:
+            if method is np.flip:
+                pytest.xfail(reason="CuPy requires axis argument")
+            elif method in {np.repeat, np.tile}:
+                pytest.xfail(reason="CuPy does not accept array repeats")
+        raise
+    except ValueError:
+        if backend is CupyBackend and method in {np.argwhere, np.block}:
+            pytest.xfail(reason="Default relies on array_like coercion")
+        raise
+    except NotImplementedError:
+        if backend is CupyBackend and method is np.sort_complex:
+            pytest.xfail(reason="CuPy cannot sort complex data")
+        raise
+    except AttributeError:
+        if backend is CupyBackend and method is np.lexsort:
+            pytest.xfail(reason="CuPy doesn't accept tuples of arrays")
+        raise
 
     if method is np.shape:
         assert isinstance(ret, tuple) and all(isinstance(s, int) for s in ret)
@@ -228,6 +246,23 @@ def test_functions_coerce(backend, method, args, kwargs):
         ret.compute()
 
 
+def test_copyto(backend):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            dst = np.asarray([1, 2])
+            src = np.asarray([3, 4])
+            np.copyto(dst, src)
+            assert np.array_equal(dst, src)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, np.copyto) not in EXCEPTIONS:
+            raise pytest.xfail(
+                reason="The backend has no implementation for this ufunc."
+            )
+
+    assert isinstance(dst, types)
+
+
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
@@ -248,12 +283,14 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
             if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
                 raise
             pytest.xfail(reason="The backend has no implementation for this ufunc.")
+        except TypeError:
+            if backend is CupyBackend:
+                if method in {np.std, np.var} and not dtype.startswith("float"):
+                    pytest.xfail(reason="CuPy doesn't allow mean to cast to int")
 
     assert isinstance(ret, types)
-    if XndBackend is not None and backend == XndBackend:
-        assert ret.dtype == ndt(dtype)
-    else:
-        assert ret.dtype == dtype
+
+    assert ret.dtype == dtype
 
 
 @pytest.mark.parametrize(
@@ -264,6 +301,11 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.nonzero, ([3, 1, 2, 4],), {}),
         (np.where, ([[3, 1, 2, 4]],), {}),
         (np.gradient, ([[0, 1, 2], [3, 4, 5], [6, 7, 8]],), {}),
+        (np.split, ([1, 2, 3, 4], 2), {}),
+        (np.array_split, ([1, 2, 3, 4, 5, 6, 7, 8], 3), {}),
+        (np.dsplit, ([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], 2), {}),
+        (np.hsplit, ([[1, 2], [3, 4]], 2), {}),
+        (np.vsplit, ([[1, 2], [3, 4]], 2), {}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):
@@ -297,6 +339,10 @@ def test_multiple_output(backend, method, args, kwargs):
         (np.zeros, ((1, 2, 3),), {}),
         (np.zeros_like, ([1, 2, 3],), {}),
         (np.asanyarray, ([1, 2, 3],), {}),
+        (np.asfarray, ([1, 2, 3],), {}),
+        (np.asfortranarray, ([[1, 2], [3, 4]],), {}),
+        (np.asarray_chkfinite, ([1, 2, 3],), {}),
+        (np.require, ([[1, 2], [3, 4]],), {}),
         (np.ascontiguousarray, ([1, 2, 3],), {}),
         (np.frombuffer, (), {}),
         (np.fromfunction, (lambda i: i + 1,), {"shape": (3,)}),
@@ -332,10 +378,8 @@ def test_array_creation(backend, method, args, kwargs):
 
     if isinstance(ret, da.Array):
         ret.compute()
-    if XndBackend is not None and backend == XndBackend:
-        assert ret.dtype == ndt(dtype)
-    else:
-        assert ret.dtype == dtype
+
+    assert ret.dtype == dtype
 
 
 @pytest.mark.parametrize(
@@ -376,7 +420,7 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
             res = np.asarray(res)
             assert np.allclose(ret, res, equal_nan=True)
     except ua.BackendNotImplementedError:
-        if backend in FULLY_TESTED_BACKENDS and backend is not XndBackend:
+        if backend in FULLY_TESTED_BACKENDS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 

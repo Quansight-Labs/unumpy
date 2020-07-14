@@ -1,6 +1,7 @@
 import functools
 import itertools
-from collections.abc import Iterable
+import collections
+import numbers
 import operator
 from uarray import create_multimethod, mark_as, all_of_type, Dispatchable
 import builtins
@@ -453,6 +454,46 @@ def asanyarray(a, dtype=None, order=None):
     return (a, mark_dtype(dtype))
 
 
+def _asfarray_default(a, dtype=float):
+    a = asarray(a, dtype=dtype)
+    if not a.dtype.name.startswith("float"):
+        dtype = float
+
+    return asarray(a, dtype=dtype)
+
+
+@create_numpy(_dtype_argreplacer, default=_asfarray_default)
+def asfarray(a, dtype=float):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(
+    _dtype_argreplacer,
+    default=lambda a, dtype=None: asarray(a, dtype=dtype, order="F"),
+)
+def asfortranarray(a, dtype=None):
+    return (mark_dtype(dtype),)
+
+
+def _asarray_chkfinite_default(a, dtype=None, order=None):
+    arr = asarray(a, dtype=dtype, order=order)
+    if not all(isfinite(arr)):
+        raise ValueError("Array must not contain infs or NaNs.")
+
+    return arr
+
+
+@create_numpy(_dtype_argreplacer, default=_asarray_chkfinite_default)
+def asarray_chkfinite(a, dtype=None, order=None):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_self_dtype_argreplacer)
+@all_of_type(ndarray)
+def require(a, dtype=None, requirements=None):
+    return (a, mark_dtype(dtype))
+
+
 @create_numpy(
     _dtype_argreplacer,
     default=lambda a, dtype=None: asarray(a, dtype=dtype, order="C"),
@@ -489,7 +530,7 @@ def fromfunction(function, shape, **kwargs):
 
 
 def _fromiter_default(iterable, dtype, count=-1):
-    if not isinstance(iterable, Iterable):
+    if not isinstance(iterable, collections.abc.Iterable):
         raise TypeError("'%s' object is not iterable" % type(iterable).__name__)
     if count >= 0:
         iterable = itertools.islice(iterable, 0, count)
@@ -784,6 +825,76 @@ def broadcast_to(array, shape, subok=False):
     return (array,)
 
 
+def _normalize_axis(ndim, axis, allow_repeats=False):
+    if not isinstance(axis, collections.abc.Sequence):
+        axis = operator.index(axis)
+        axis_pos = ndim + axis if axis < 0 else axis
+
+        if axis_pos >= ndim or axis_pos < 0:
+            raise ValueError(
+                "Axis %s is out of bounds for array of dimension %s." % (axis, ndim)
+            )
+
+        return axis_pos
+
+    axes = tuple(_normalize_axis(ndim, ax) for ax in axis)
+
+    if not allow_repeats and (len(axes) != len(set(axes))):
+        raise ValueError("Repeated axis.")
+
+    return axes
+
+
+def _expand_dims_default(a, axis):
+    if isinstance(axis, numbers.Integral):
+        axis = (axis,)
+
+    axis = _normalize_axis(ndim(a) + len(axis), axis)
+
+    out_shape = list(a.shape)
+
+    for i, ax in enumerate(sorted(axis)):
+        out_shape.insert(ax + i, 1)
+
+    return a.reshape(tuple(out_shape))
+
+
+@create_numpy(_self_argreplacer, default=_expand_dims_default)
+@all_of_type(ndarray)
+def expand_dims(a, axis):
+    return (a,)
+
+
+def _squeeze_default(a, axis=None):
+    if axis is None:
+        out_shape = tuple(dim for dim in a.shape if dim != 1)
+
+        return a.reshape(out_shape)
+
+    if isinstance(axis, numbers.Number):
+        axis = (axis,)
+
+    axis = _normalize_axis(ndim(a), axis)
+
+    out_shape = list(a.shape)
+
+    for i, ax in enumerate(sorted(axis)):
+        if a.shape[ax] == 1:
+            del out_shape[ax - i]
+        else:
+            raise ValueError(
+                "Cannot select an axis to squeeze out which has size not equal to one."
+            )
+
+    return a.reshape(tuple(out_shape))
+
+
+@create_numpy(_self_argreplacer, default=_squeeze_default)
+@all_of_type(ndarray)
+def squeeze(a, axis=None):
+    return (a,)
+
+
 def _meshgrid_default(*args, indexing="xy", sparse=False, copy=True):
     ndim = len(args)
 
@@ -1017,6 +1128,19 @@ for key, val in globals().copy().items():
         ufunc_list.append(key)
 
 
+def _copyto_argreplacer(args, kwargs, dispatchables):
+    def func(dst, src, casting="same_kind", where=True):
+        return dispatchables[:2], dict(casting=casting, where=dispatchables[2])
+
+    return func(*args, **kwargs)
+
+
+@create_numpy(_copyto_argreplacer)
+@all_of_type(ndarray)
+def copyto(dst, src, casting="same_kind", where=True):
+    return (mark_non_coercible(dst), src, where)
+
+
 @create_numpy(_self_argreplacer, default=getattr_impl("shape"))
 @all_of_type(ndarray)
 def shape(array):
@@ -1129,6 +1253,26 @@ def _column_stack_default(tup):
 @create_numpy(_first_argreplacer, default=_column_stack_default)
 @all_of_type(ndarray)
 def column_stack(tup):
+    return tup
+
+
+def _dstack_default(tup):
+    arrays = []
+    for arr in tup:
+        nd = ndim(arr)
+        if nd == 1:
+            arrays.append(expand_dims(arr, (0, -1)))
+        elif nd == 2:
+            arrays.append(expand_dims(arr, -1))
+        else:
+            arrays.append(arr)
+
+    return concatenate(arrays, axis=2)
+
+
+@create_numpy(_first_argreplacer, default=_dstack_default)
+@all_of_type(ndarray)
+def dstack(tup):
     return tup
 
 
@@ -1421,3 +1565,208 @@ def _vander_default(x, N=None, increasing=False):
 @all_of_type(ndarray)
 def vander(x, N=None, increasing=False):
     return (x,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def split(ary, indices_or_sections, axis=0):
+    return (ary,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def array_split(ary, indices_or_sections, axis=0):
+    return (ary,)
+
+
+@create_numpy(
+    _self_argreplacer,
+    default=lambda ary, indices_or_sections: split(ary, indices_or_sections, axis=2),
+)
+@all_of_type(ndarray)
+def dsplit(ary, indices_or_sections):
+    return (ary,)
+
+
+@create_numpy(
+    _self_argreplacer,
+    default=lambda ary, indices_or_sections: split(ary, indices_or_sections, axis=1),
+)
+@all_of_type(ndarray)
+def hsplit(ary, indices_or_sections):
+    return (ary,)
+
+
+@create_numpy(
+    _self_argreplacer,
+    default=lambda ary, indices_or_sections: split(ary, indices_or_sections, axis=0),
+)
+@all_of_type(ndarray)
+def vsplit(ary, indices_or_sections):
+    return (ary,)
+
+
+def _tile_default(A, reps):
+    if isinstance(reps, numbers.Integral):
+        reps = (reps,)
+
+    n = len(reps) - ndim(A)
+    if n > 0:
+        A = expand_dims(A, tuple(range(n)))
+    elif n < 0:
+        reps = ((1,) * -n) + tuple(reps)
+
+    new_shape = tuple(dim * rep for dim, rep in zip(A.shape, reps))
+
+    for axis, dim in enumerate(reps):
+        dim = operator.index(dim)
+        arrays = [A] * dim
+        if len(arrays) == 0:
+            return asarray(arrays, dtype=A.dtype).reshape(new_shape)
+
+        A = concatenate(arrays, axis=axis)
+
+    return A
+
+
+@create_numpy(_self_argreplacer, default=_tile_default)
+@all_of_type(ndarray)
+def tile(A, reps):
+    return (A,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def repeat(a, repeats, axis=None):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def delete(arr, obj, axis=None):
+    return (arr,)
+
+
+def _insert_argreplacer(args, kwargs, dispatchables):
+    def replacer(arr, obj, values, axis=None):
+        return (dispatchables[0], obj, dispatchables[1]), {"axis": axis}
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_insert_argreplacer)
+@all_of_type(ndarray)
+def insert(arr, obj, values, axis=None):
+    return (arr, values)
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def append(arr, values, axis=None):
+    return (arr, values)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def resize(a, new_shape):
+    return (a,)
+
+
+def _trim_zeros_default(filt, trim="fb"):
+    nonzero_idxs = nonzero(filt)[0]
+
+    if len(nonzero_idxs) == 0:
+        return asarray([], dtype=filt.dtype)
+
+    start, end = None, None
+    if "f" in trim:
+        start = nonzero_idxs[0]
+    if "b" in trim:
+        end = nonzero_idxs[-1] + 1
+    return filt[start:end]
+
+
+@create_numpy(_self_argreplacer, default=_trim_zeros_default)
+@all_of_type(ndarray)
+def trim_zeros(filt, trim="fb"):
+    return (filt,)
+
+
+def _flip_default(m, axis=None):
+    nd = ndim(m)
+    if axis is None:
+        axis = tuple(range(nd))
+    else:
+        axis = _normalize_axis(nd, axis)
+
+        if not isinstance(axis, collections.abc.Sequence):
+            axis = (axis,)
+
+    slices = [slice(None, None, 1)] * nd
+    for ax in axis:
+        slices[ax] = slice(None, None, -1)
+
+    return m[tuple(slices)]
+
+
+@create_numpy(_self_argreplacer, default=_flip_default)
+@all_of_type(ndarray)
+def flip(m, axis=None):
+    return (m,)
+
+
+@create_numpy(_self_argreplacer, default=lambda m: flip(m, 1))
+@all_of_type(ndarray)
+def fliplr(m):
+    return (m,)
+
+
+@create_numpy(_self_argreplacer, default=lambda m: flip(m, 0))
+@all_of_type(ndarray)
+def flipud(m):
+    return (m,)
+
+
+def _roll_default(a, shift, axis=None):
+    if axis is None:
+        return _roll_default(ravel(a), shift, axis=0).reshape(a.shape)
+
+    if isinstance(axis, numbers.Integral):
+        axis = (axis,)
+    if isinstance(shift, numbers.Integral):
+        shift = (shift,)
+
+    axis = _normalize_axis(ndim(a), axis, allow_repeats=True)
+
+    if not len(axis) == len(shift):
+        if len(shift) == 1:
+            shift = itertools.repeat(shift[0], len(axis))
+        elif len(axis) == 1:
+            axis = itertools.repeat(axis[0], len(shift))
+        else:
+            raise ValueError("shift and axis must have the same length.")
+
+    for s, ax in zip(shift, axis):
+        dim = a.shape[ax]
+        if s >= 0:
+            index = dim - (s % dim)
+        else:
+            index = abs(s) % dim
+
+        arrays = array_split(a, [index], axis=ax)
+
+        a = concatenate(arrays[::-1], axis=ax)
+
+    return a
+
+
+@create_numpy(_self_argreplacer, default=_roll_default)
+@all_of_type(ndarray)
+def roll(a, shift, axis=None):
+    return (a,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def rot90(m, k=1, axes=(0, 1)):
+    return (m,)
