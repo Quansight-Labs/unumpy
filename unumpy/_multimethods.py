@@ -1770,3 +1770,94 @@ def roll(a, shift, axis=None):
 @all_of_type(ndarray)
 def rot90(m, k=1, axes=(0, 1)):
     return (m,)
+
+
+def _apply_along_axis_argreplacer(args, kwargs, dispatchables):
+    def replacer(func1d, axis, arr, *args, **kwargs):
+        return (func1d, axis, dispatchables[0]) + args, kwargs
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_apply_along_axis_argreplacer)
+@all_of_type(ndarray)
+def apply_along_axis(func1d, axis, arr, *args, **kwargs):
+    return (arr,)
+
+
+def _apply_over_axes_argreplacer(args, kwargs, dispatchables):
+    def replacer(func, a, axes):
+        return (func, dispatchables[0], axes), dict()
+
+    return replacer(*args, **kwargs)
+
+
+def _apply_over_axes_default(func, a, axes):
+    nd = ndim(a)
+    axes = _normalize_axis(nd, axes)
+
+    res = a
+    for axis in axes:
+        res = func(res, axis)
+
+        res_nd = ndim(res)
+        if res_nd < nd - 1:
+            raise ValueError(
+                "Function is not returning an array with the correct number of dimensions."
+            )
+        if res_nd == nd - 1:
+            res = expand_dims(res, axis)
+
+    return res
+
+
+@create_numpy(_apply_over_axes_argreplacer, default=_apply_over_axes_default)
+@all_of_type(ndarray)
+def apply_over_axes(func, a, axes):
+    return (a,)
+
+
+@create_numpy(_identity_argreplacer)
+def frompyfunc(func, nin, nout, identity=None):
+    return ()
+
+
+def _piecewise_default(x, condlist, funclist, *args, **kw):
+    if not isinstance(condlist, list):
+        condlist = [condlist]
+
+    condlist = [asarray(cond) for cond in condlist]
+
+    n1 = len(condlist)
+    n2 = len(funclist)
+
+    if n1 != n2:
+        if n1 + 1 == n2:
+            condelse = ~any(condlist, axis=0, keepdims=True)
+            condlist = concatenate([condlist, condelse], axis=0)
+        else:
+            raise ValueError(
+                "With %d condition(s), either %d or %d functions are expected."
+                % (n, n, n + 1)
+            )
+
+    y = zeros(x.shape, dtype=x.dtype)
+
+    for i, (cond, func) in enumerate(zip(condlist, funclist)):
+        if cond.shape != x.shape and ndim(cond) != 0:
+            raise ValueError(
+                "Condition at index %d doesn't have the same shape as x." % i
+            )
+
+        if isinstance(func, collections.abc.Callable):
+            y = where(cond, func(x, *args, **kw), y)
+        else:
+            y = where(cond, func, y)
+
+    return y
+
+
+@create_numpy(_self_argreplacer, default=_piecewise_default)
+@all_of_type(ndarray)
+def piecewise(x, condlist, funclist, *args, **kw):
+    return (x,)

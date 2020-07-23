@@ -15,8 +15,8 @@ ua.set_global_backend(NumpyBackend)
 
 dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
-    (NumpyBackend, (onp.ndarray, onp.generic)),
-    (DaskBackend(), (da.Array, onp.generic)),
+    (NumpyBackend, (onp.ndarray, onp.generic, onp.ufunc)),
+    (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc)),
     (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
     pytest.param(
         (TorchBackend, (torch.Tensor,)),
@@ -466,6 +466,43 @@ def test_linalg(backend, method, args, kwargs):
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if isinstance(ret, da.Array):
+        ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
+        (
+            np.apply_along_axis,
+            (lambda a: (a[0] + a[-1]) * 0.5, 1, [[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+            {},
+        ),
+        (np.apply_over_axes, (np.sum, [[1, 2, 3], [4, 5, 6], [7, 8, 9]], [0, 1]), {}),
+        (np.frompyfunc, (bin, 1, 1), {}),
+        (
+            np.piecewise,
+            (
+                [0, 1, 2, 3],
+                [[True, False, True, False], [False, True, False, True]],
+                [0, 1],
+            ),
+            {},
+        ),
+    ],
+)
+def test_functional(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method(*args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    assert isinstance(ret, types)
 
     if isinstance(ret, da.Array):
         ret.compute()
