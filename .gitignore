@@ -25,3 +25,4 @@ build/
 .eggs/
 dask-worker-space/
 *.ipynb
+default.profraw

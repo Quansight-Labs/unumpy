@@ -11,28 +11,42 @@ _ufunc_mapping: Dict[ufunc, np.ufunc] = {}
 __ua_domain__ = "numpy"
 
 
+def overridden_class(self):
+    module = self.__module__.split(".")
+    module = ".".join(m for m in module if m != "_multimethods")
+    return _get_from_name_domain(self.__name__, module)
+
+
 _implementations: Dict = {
     unumpy.ufunc.__call__: np.ufunc.__call__,
     unumpy.ufunc.reduce: np.ufunc.reduce,
     unumpy.count_nonzero: lambda a, axis=None: np.asarray(np.count_nonzero(a, axis))[
         ()
     ],
+    unumpy.ClassOverrideMeta.overridden_class.fget: overridden_class,
 }
+
+
+def _get_from_name_domain(name, domain):
+    module = np
+    domain_hierarchy = domain.split(".")
+    for d in domain_hierarchy[1:]:
+        module = getattr(module, d)
+    if hasattr(module, name):
+        return getattr(module, name)
+    else:
+        return NotImplemented
 
 
 def __ua_function__(method, args, kwargs):
     if method in _implementations:
         return _implementations[method](*args, **kwargs)
 
-    module = np
-    domain_hierarchy = method.domain.split(".")
-    for d in domain_hierarchy[1:]:
-        module = getattr(module, d)
-
-    if hasattr(module, method.__name__):
-        return getattr(module, method.__name__)(*args, **kwargs)
-    else:
+    method_numpy = _get_from_name_domain(method.__name__, method.domain)
+    if method_numpy is NotImplemented:
         return NotImplemented
+
+    return method_numpy(*args, **kwargs)
 
 
 @wrap_single_convertor

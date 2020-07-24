@@ -19,6 +19,27 @@ import random
 from typing import Dict
 
 
+def overridden_class(self):
+    if self is ndarray:
+        return da.Array
+    if self is ufunc:
+        return da.ufunc.ufunc
+    module = self.__module__.split(".")
+    module = ".".join(m for m in module if m != "_multimethods")
+    return _get_from_name_domain(self.__name__, module)
+
+
+def _get_from_name_domain(name, domain):
+    module = np
+    domain_hierarchy = domain.split(".")
+    for d in domain_hierarchy[1:]:
+        module = getattr(module, d)
+    if hasattr(module, name):
+        return getattr(module, name)
+    else:
+        return NotImplemented
+
+
 class DaskBackend:
     _ufunc_mapping: Dict[ufunc, np.ufunc] = {}
     __ua_domain__ = "numpy"
@@ -33,6 +54,7 @@ class DaskBackend:
             unumpy.zeros: self.wrap_uniform_create(unumpy.zeros),
             unumpy.full: self.wrap_uniform_create(unumpy.full),
             unumpy.trim_zeros: self.trim_zeros,
+            unumpy.ClassOverrideMeta.overridden_class.fget: overridden_class,
         }
 
         self._implementations = _implementations

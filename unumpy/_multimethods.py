@@ -56,6 +56,55 @@ def _ureduce_argreplacer(args, kwargs, dispatchables):
     return ureduce(*args, **kwargs)
 
 
+class ClassOverrideMeta(type):
+    def __init__(self, *args, **kwargs):
+        self._unwrapped = type(*args, **kwargs)
+        return super().__init__(*args, **kwargs)
+
+    @property  # type: ignore
+    @create_numpy(_identity_argreplacer, default=lambda self: self._unwrapped)
+    def overridden_class(self):
+        return ()
+
+    @create_numpy(
+        _identity_argreplacer,
+        default=lambda self, value: isinstance(value, self.overridden_class),
+    )
+    def __instancecheck__(self, value):
+        return ()
+
+    @create_numpy(
+        _identity_argreplacer,
+        default=lambda self, value: issubclass(value, self.overridden_class),
+    )
+    def __subclasscheck__(self, value):
+        return ()
+
+
+class ClassOverrideMetaWithConstructor(ClassOverrideMeta):
+    @create_numpy(
+        _identity_argreplacer,
+        default=lambda self, *a, **kw: self.overridden_class(*a, **kw),
+    )
+    def __call__(self, *args, **kwargs):
+        return ()
+
+
+class ClassOverrideMetaWithGetAttr(ClassOverrideMeta):
+    @create_numpy(
+        _identity_argreplacer,
+        default=lambda self, name: getattr(self.overridden_class, name),
+    )
+    def __getattr__(self, name):
+        return ()
+
+
+class ClassOverrideMetaWithConstructorAndGetAttr(
+    ClassOverrideMetaWithConstructor, ClassOverrideMetaWithGetAttr
+):
+    pass
+
+
 def _reduce_argreplacer(args, kwargs, arrays):
     def reduce(a, axis=None, dtype=None, out=None, keepdims=False):
         kwargs = {}
@@ -145,7 +194,7 @@ def _unary_op(name):
     return f
 
 
-class ndarray:
+class ndarray(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
     __add__, __radd__, __iadd__ = _math_op("add")
     __sub__, __rsub__, __isub__ = _math_op("subtract")
     __mul__, __rmul__, __imul__ = _math_op("multiply")
@@ -175,11 +224,11 @@ class ndarray:
         return NotImplemented
 
 
-class dtype:
+class dtype(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
     pass
 
 
-class ufunc:
+class ufunc(metaclass=ClassOverrideMeta):
     def __init__(self, name, nin, nout):
         self.name = name
         self.nin, self.nout = nin, nout
@@ -1172,7 +1221,7 @@ class errstate:
 
 ufunc_list = []
 for key, val in globals().copy().items():
-    if isinstance(val, ufunc):
+    if type(val) is ufunc:
         ufunc_list.append(key)
 
 
