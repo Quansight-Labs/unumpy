@@ -213,6 +213,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nan_to_num, ([np.inf, np.NINF, np.nan],), {}),
         (np.real_if_close, ([2.1 + 4e-14j, 5.2 + 3e-15j],), {}),
         (np.interp, (2.5, [1, 2, 3], [3, 2, 0]), {}),
+        (np.indices, ((2, 3),), {}),
+        (np.ravel_multi_index, ([[3, 6, 6], [4, 5, 1]], (7, 6)), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -326,6 +328,15 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.dsplit, ([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], 2), {}),
         (np.hsplit, ([[1, 2], [3, 4]], 2), {}),
         (np.vsplit, ([[1, 2], [3, 4]], 2), {}),
+        (np.ix_, ([0, 1], [2, 4]), {}),
+        (np.unravel_index, ([22, 41, 37], (7, 6)), {}),
+        (np.diag_indices, (4,), {}),
+        (np.diag_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.mask_indices, (3, np.triu), {}),
+        (np.tril_indices, (4,), {}),
+        (np.tril_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.triu_indices, (4,), {}),
+        (np.triu_indices_from, ([[1, 2], [3, 4]],), {}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):

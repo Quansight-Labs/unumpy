@@ -1133,6 +1133,122 @@ def where(condition, x=None, y=None):
     return (condition, x, y)
 
 
+@create_numpy(_dtype_argreplacer)
+def indices(dimensions, dtype=int, sparse=False):
+    return (mark_dtype(dtype),)
+
+
+@create_numpy(_identity_argreplacer)
+def ix_(*args):
+    return ()
+
+
+@create_numpy(_identity_argreplacer)
+def ravel_multi_index(multi_index, dims, mode="raise", order="C"):
+    return ()
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def unravel_index(indices, shape, order="C"):
+    return (indices,)
+
+
+@create_numpy(_identity_argreplacer, default=lambda n, ndim=2: (arange(n),) * ndim)
+def diag_indices(n, ndim=2):
+    return ()
+
+
+def _diag_indices_from_default(arr):
+    nd = ndim(arr)
+    if not nd >= 2:
+        raise ValueError("Input array must be at least 2-d.")
+
+    shape = arr.shape
+    dim1 = shape[0]
+    for dim in shape[1:]:
+        if dim != dim1:
+            raise ValueError("All dimensions of input must be of equal length.")
+
+    return diag_indices(dim1, nd)
+
+
+@create_numpy(_self_argreplacer, default=_diag_indices_from_default)
+@all_of_type(ndarray)
+def diag_indices_from(arr):
+    return (arr,)
+
+
+def _mask_indices_default(n, mask_func, k=0):
+    a = ones((n, n))
+    a = mask_func(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_mask_indices_default)
+def mask_indices(n, mask_func, k=0):
+    return ()
+
+
+def _tril_indices_default(n, k=0, m=None):
+    if m is None:
+        m = n
+
+    a = ones((n, m))
+    a = tril(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_tril_indices_default)
+def tril_indices(n, k=0, m=None):
+    return ()
+
+
+def _tril_indices_from_default(arr, k=0):
+    if ndim(arr) != 2:
+        raise ValueError("Input array must be 2-d.")
+
+    shape = arr.shape
+    return tril_indices(shape[0], k, shape[1])
+
+
+@create_numpy(_self_argreplacer, default=_tril_indices_from_default)
+@all_of_type(ndarray)
+def tril_indices_from(arr, k=0):
+    return (arr,)
+
+
+def _triu_indices_default(n, k=0, m=None):
+    if m is None:
+        m = n
+
+    a = ones((n, m))
+    a = triu(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_triu_indices_default)
+def triu_indices(n, k=0, m=None):
+    return ()
+
+
+def _triu_indices_from_default(arr, k=0):
+    if ndim(arr) != 2:
+        raise ValueError("Input array must be 2-d.")
+
+    shape = arr.shape
+    return triu_indices(shape[0], k, shape[1])
+
+
+@create_numpy(_self_argreplacer, default=_triu_indices_from_default)
+@all_of_type(ndarray)
+def triu_indices_from(arr, k=0):
+    return (arr,)
+
+
 @create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def pad(array, pad_width, mode, **kwargs):
