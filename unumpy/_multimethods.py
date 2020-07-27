@@ -1143,9 +1143,50 @@ def ix_(*args):
     return ()
 
 
-@create_numpy(_identity_argreplacer)
+def _ravel_multi_index_default(multi_index, dims, mode="raise", order="C"):
+    if order == "F":
+        return NotImplemented
+
+    if len(multi_index) != len(dims):
+        raise ValueError("Parameter multi_index must be a sequence of length %d." % n2)
+
+    if ndim(multi_index) == 1:
+        multi_index = multi_index.reshape((-1, 1))
+
+    if not isinstance(mode, (tuple, list)):
+        mode = (mode,) * multi_index.shape[1]
+    elif len(mode) < shape[1]:
+        mode = tuple(itertools.islice(itertools.cycle(mode), multi_index.shape[1]))
+
+    strides = (1,) + dims[:0:-1]
+    strides = cumprod(strides)
+
+    raveled_indices = []
+    for index, m in zip(transpose(multi_index), mode):
+        if m not in {"raise", "wrap", "clip"}:
+            raise ValueError("Clipmode not understood.")
+
+        if m == "wrap":
+            index = mod(index, dims)
+        elif m == "clip":
+            index = clip(index, 0, tuple(dim - 1 for dim in dims))
+        elif any(index < 0) or any(index >= dims):
+            raise ValueError("Invalid entry in coordinates array.")
+
+        res = sum(index[::-1] * strides)
+
+        raveled_indices.append(res)
+
+    if len(raveled_indices) == 1:
+        return raveled_indices[0]
+    else:
+        return asarray(raveled_indices)
+
+
+@create_numpy(_self_argreplacer, default=_ravel_multi_index_default)
+@all_of_type(ndarray)
 def ravel_multi_index(multi_index, dims, mode="raise", order="C"):
-    return ()
+    return (multi_index,)
 
 
 @create_numpy(_self_argreplacer)

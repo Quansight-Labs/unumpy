@@ -348,6 +348,18 @@ def test_multiple_output(backend, method, args, kwargs):
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
+    except ValueError:
+        if backend is SparseBackend:
+            if method in {
+                np.mask_indices,
+                np.tril_indices,
+                np.tril_indices_from,
+                np.triu_indices,
+                np.triu_indices_from,
+            }:
+                raise pytest.xfail(
+                    reason="Sparse's methods for triangular matrices require an array with zero fill-values as argument."
+                )
 
     assert all(isinstance(arr, types) for arr in ret)
 
