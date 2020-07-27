@@ -1189,7 +1189,21 @@ def ravel_multi_index(multi_index, dims, mode="raise", order="C"):
     return (multi_index,)
 
 
-@create_numpy(_self_argreplacer)
+def _unravel_index_default(indices, shape, order="C"):
+    if order == "F":
+        return NotImplemented
+
+    unraveled_coords = []
+    stride = 1
+    for i, dim in enumerate(shape[::-1]):
+        index = (indices // stride) % dim
+        unraveled_coords.append(index)
+        stride *= dim
+
+    return tuple(unraveled_coords[::-1])
+
+
+@create_numpy(_self_argreplacer, default=_unravel_index_default)
 @all_of_type(ndarray)
 def unravel_index(indices, shape, order="C"):
     return (indices,)
