@@ -1144,21 +1144,26 @@ def ix_(*args):
 
 
 def _ravel_multi_index_default(multi_index, dims, mode="raise", order="C"):
-    if order == "F":
-        return NotImplemented
-
     if len(multi_index) != len(dims):
-        raise ValueError("Parameter multi_index must be a sequence of length %d." % n2)
+        raise ValueError(
+            "Parameter multi_index must be a sequence of length %d." % len(dims)
+        )
 
     if ndim(multi_index) == 1:
         multi_index = multi_index.reshape((-1, 1))
 
     if not isinstance(mode, (tuple, list)):
         mode = (mode,) * multi_index.shape[1]
-    elif len(mode) < shape[1]:
+    elif len(mode) < multi_index.shape[1]:
         mode = tuple(itertools.islice(itertools.cycle(mode), multi_index.shape[1]))
 
-    strides = (1,) + dims[:0:-1]
+    if order == "C":
+        strides = (1,) + dims[:0:-1]
+    elif order == "F":
+        strides = (1,) + dims[:-1]
+    else:
+        raise ValueError("Parameter order not understood.")
+
     strides = cumprod(strides)
 
     raveled_indices = []
@@ -1169,11 +1174,14 @@ def _ravel_multi_index_default(multi_index, dims, mode="raise", order="C"):
         if m == "wrap":
             index = mod(index, dims)
         elif m == "clip":
-            index = clip(index, 0, tuple(dim - 1 for dim in dims))
+            index = clip(index, 0, [dim - 1 for dim in dims])
         elif any(index < 0) or any(index >= dims):
             raise ValueError("Invalid entry in coordinates array.")
 
-        res = sum(index[::-1] * strides)
+        if order == "C":
+            index = index[::-1]
+
+        res = sum(index * strides)
 
         raveled_indices.append(res)
 
@@ -1190,17 +1198,20 @@ def ravel_multi_index(multi_index, dims, mode="raise", order="C"):
 
 
 def _unravel_index_default(indices, shape, order="C"):
-    if order == "F":
-        return NotImplemented
+    if order == "C":
+        shape = shape[::-1]
 
     unraveled_coords = []
     stride = 1
-    for i, dim in enumerate(shape[::-1]):
+    for dim in shape:
         index = (indices // stride) % dim
         unraveled_coords.append(index)
         stride *= dim
 
-    return tuple(unraveled_coords[::-1])
+    if order == "C":
+        return tuple(unraveled_coords[::-1])
+    else:
+        return tuple(unraveled_coords)
 
 
 @create_numpy(_self_argreplacer, default=_unravel_index_default)
