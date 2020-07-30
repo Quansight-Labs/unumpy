@@ -1169,7 +1169,7 @@ def _ravel_multi_index_default(multi_index, dims, mode="raise", order="C"):
     raveled_indices = []
     for index, m in zip(transpose(multi_index), mode):
         if m not in {"raise", "wrap", "clip"}:
-            raise ValueError("Clipmode not understood.")
+            raise TypeError("Clipmode not understood.")
 
         if m == "wrap":
             index = mod(index, dims)
@@ -1325,6 +1325,78 @@ def pad(array, pad_width, mode, **kwargs):
 @all_of_type(ndarray)
 def searchsorted(a, v, side="left", sorter=None):
     return (a,)
+
+
+def _take_default(a, indices, axis=None, out=None, mode="raise"):
+    if axis is None:
+        a = ravel(a)
+        axis = 0
+
+    nd = ndim(a)
+
+    axis = _normalize_axis(nd, axis)
+
+    if mode not in {"raise", "wrap", "clip"}:
+        raise TypeError("Clipmode not understood.")
+
+    if mode == "wrap":
+        indices = mod(indices, a.shape[axis])
+    elif mode == "clip":
+        indices = clip(indices, 0, a.shape[axis] - 1)
+
+    slices = [slice(None)] * nd
+    slices[axis] = indices
+    slices = tuple(slices)
+
+    res = a[slices]
+
+    if out is None:
+        return res
+    else:
+        copyto(out, res)
+
+
+@create_numpy(_first2argreplacer, default=_take_default)
+@all_of_type(ndarray)
+def take(a, indices, axis=None, out=None, mode="raise"):
+    return (a, indices, mark_non_coercible(out))
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def take_along_axis(arr, indices, axis):
+    return (arr, indices)
+
+
+def _choose_default(a, choices, out=None, mode="raise"):
+    if mode == "raise":
+        if any(a < 0) or any(a >= len(choices)):
+            raise ValueError("Invalid entry in choice array.")
+    elif mode == "wrap":
+        a = mod(a, len(choices))
+    elif mode == "clip":
+        a = clip(a, 0, len(choices) - 1)
+    else:
+        raise TypeError("Clipmode not understood.")
+
+    choices = [asarray(choice) for choice in choices]
+
+    a, *choices = broadcast_arrays(a, *choices)
+
+    merged_array = empty(a.shape, dtype=int)
+    for i, c in enumerate(choices):
+        merged_array = where(a == i, c, merged_array)
+
+    if out is None:
+        return merged_array
+    else:
+        copyto(out, merged_array)
+
+
+@create_numpy(_self_out_argreplacer, default=_choose_default)
+@all_of_type(ndarray)
+def choose(a, choices, out=None, mode="raise"):
+    return (a, mark_non_coercible(out))
 
 
 @create_numpy(_first2argreplacer)
@@ -1829,6 +1901,154 @@ def array_equiv(a1, a2):
 @all_of_type(ndarray)
 def diag(v, k=0):
     return (v,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def diagonal(a, offset=0, axis1=0, axis2=1):
+    return (a,)
+
+
+def _select_default(condlist, choicelist, default=0):
+    if len(condlist) != len(choicelist):
+        raise ValueError("List of cases must be same length as list of conditions.")
+
+    if len(condlist) == 0:
+        raise ValueError("select with an empty condition list is not possible")
+
+    condlist = [asarray(cond) for cond in condlist]
+    choicelist = [asarray(choice) for choice in choicelist]
+
+    condlist = broadcast_arrays(*condlist)
+    choicelist = broadcast_arrays(*choicelist)
+
+    out = full(condlist[0].shape, default)
+
+    condlist = condlist[::-1]
+    choicelist = choicelist[::-1]
+    for cond, choice in zip(condlist, choicelist):
+        out = where(cond, choice, out)
+
+    return out
+
+
+@create_numpy(_identity_argreplacer, default=_select_default)
+def select(condlist, choicelist, default=0):
+    return ()
+
+
+def _place_default(arr, mask, vals):
+    if arr.shape != mask.shape:
+        raise ValueError("mask and arr must have the same shape.")
+
+    raveled_mask = ravel(mask)
+
+    n = count_nonzero(raveled_mask)
+
+    if len(vals) < n:
+        vals = list(itertools.islice(itertools.cycle(vals), n))
+    elif len(vals) > n:
+        vals = vals[:n]
+
+    temp = empty(raveled_mask.shape, dtype=int)
+
+    indices = nonzero(raveled_mask)[0]
+
+    vals = insert(temp, indices, vals, axis=0)
+    vals = delete(vals, indices + arange(n) + 1)
+
+    copyto(arr, vals.reshape(arr.shape), where=mask)
+
+
+@create_numpy(_first2argreplacer, default=_place_default)
+@all_of_type(ndarray)
+def place(arr, mask, vals):
+    return (arr, mask)
+
+
+def _first3argreplacer(args, kwargs, dispatchables):
+    def replacer(a, b, c, *args, **kwargs):
+        return dispatchables + args, dict(**kwargs)
+
+    return replacer(*args, **kwargs)
+
+
+def _put_default(a, ind, v, mode="raise"):
+    if ndim(ind) == 0:
+        ind = [ind]
+    if ndim(v) == 0:
+        v = [v]
+
+    if len(v) < len(ind):
+        v = list(itertools.islice(itertools.cycle(v), len(ind)))
+    elif len(v) > len(ind):
+        v = v[: len(ind)]
+
+    raveled = ravel(a)
+
+    if mode not in {"raise", "wrap", "clip"}:
+        raise TypeError("Clipmode not understood.")
+
+    if mode == "wrap":
+        ind = mod(ind, len(raveled))
+    elif mode == "clip":
+        ind = clip(ind, 0, len(raveled) - 1)
+
+    raveled = insert(raveled, ind, v, axis=0)
+    raveled = delete(raveled, ind + arange(len(ind)) + 1)
+
+    copyto(a, raveled.reshape(a.shape))
+
+
+@create_numpy(_first3argreplacer, default=_put_default)
+@all_of_type(ndarray)
+def put(a, ind, v, mode="raise"):
+    return (a, ind, v)
+
+
+@create_numpy(_first3argreplacer)
+@all_of_type(ndarray)
+def put_along_axis(arr, indices, values, axis):
+    return (arr, indices, values)
+
+
+@create_numpy(_first3argreplacer)
+@all_of_type(ndarray)
+def putmask(a, mask, values):
+    return (a, mask, values)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def fill_diagonal(a, val, wrap=False):
+    return (a,)
+
+
+class nditer(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
+    pass
+
+
+class ndenumerate(metaclass=ClassOverrideMetaWithConstructor):
+    pass
+
+
+class ndindex(metaclass=ClassOverrideMetaWithConstructor):
+    pass
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nested_iters(
+    op,
+    axes,
+    flags=None,
+    op_flags=None,
+    op_dtypes=None,
+    order="K",
+    casting="safe",
+    buffersize=0,
+):
+    return (op,)
 
 
 @create_numpy(_self_argreplacer, default=lambda v, k=0: diag(ravel(v), k))

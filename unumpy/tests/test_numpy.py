@@ -1,3 +1,4 @@
+import collections
 import pytest
 import uarray as ua
 import unumpy as np
@@ -189,6 +190,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.array_equal, ([1, 2, 3], [1, 2, 3]), {}),
         (np.array_equiv, ([1, 2], [[1, 2], [1, 2]]), {}),
         (np.diag, ([1, 2, 3],), {}),
+        (np.diagonal, ([[0, 1], [2, 3]],), {}),
         (np.diagflat, ([[1, 2], [3, 4]],), {}),
         (np.copy, ([1, 2, 3],), {}),
         (np.tril, ([[1, 2], [3, 4]],), {}),
@@ -215,6 +217,18 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.interp, (2.5, [1, 2, 3], [3, 2, 0]), {}),
         (np.indices, ((2, 3),), {}),
         (np.ravel_multi_index, ([[3, 6, 6], [4, 5, 1]], (7, 6)), {}),
+        (np.take, ([4, 3, 5, 7, 6, 8], [0, 1, 4]), {}),
+        (np.take_along_axis, ([[1, 2, 3], [4, 5, 6]], [[0, -1]], 1), {}),
+        (np.choose, ([1, 2, 0], [[0, 1, 2], [10, 11, 12], [20, 21, 22]]), {}),
+        (np.select, ([[True, False], [False, True]], [[0, 0], [1, 1]]), {}),
+        (np.place, ([[1, 2], [3, 4]], [[False, False], [True, True]], [-99, 99]), {}),
+        (np.put, ([0, 1, 2, 3, 4, 5], [0, 2], [-44, -55]), {}),
+        (np.put_along_axis, ([[10, 30, 20], [60, 40, 50]], [[0], [1]], 99, 1), {}),
+        (np.putmask, ([[1, 2], [3, 4]], [[False, False], [True, True]], [-99, 99]), {}),
+        (np.fill_diagonal, ([[0, 0], [0, 0]], 1), {}),
+        (np.nditer, ([[1, 2, 3]],), {}),
+        (np.ndenumerate, ([[1, 2], [3, 4]],), {}),
+        (np.ndindex, (3, 2, 1), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -261,6 +275,10 @@ def test_functions_coerce(backend, method, args, kwargs):
         np.array_equiv,
     ):
         assert isinstance(ret, (bool,) + types)
+    elif method in {np.place, np.put, np.put_along_axis, np.putmask, np.fill_diagonal}:
+        assert ret is None
+    elif method in {np.nditer, np.ndenumerate, np.ndindex}:
+        assert isinstance(ret, collections.abc.Iterator)
     else:
         assert isinstance(ret, types)
 
@@ -337,6 +355,7 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.tril_indices_from, ([[1, 2], [3, 4]],), {}),
         (np.triu_indices, (4,), {}),
         (np.triu_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.nested_iters, ([[0, 1], [2, 3]], [[0], [1]]), {}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):
@@ -360,8 +379,10 @@ def test_multiple_output(backend, method, args, kwargs):
                 raise pytest.xfail(
                     reason="Sparse's methods for triangular matrices require an array with zero fill-values as argument."
                 )
-
-    assert all(isinstance(arr, types) for arr in ret)
+    if method is np.nested_iters:
+        assert all(isinstance(ite, collections.abc.Iterator) for ite in ret)
+    else:
+        assert all(isinstance(arr, types) for arr in ret)
 
     for arr in ret:
         if isinstance(arr, da.Array):
