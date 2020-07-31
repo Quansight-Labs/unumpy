@@ -1133,7 +1133,23 @@ def where(condition, x=None, y=None):
     return (condition, x, y)
 
 
-@create_numpy(_dtype_argreplacer)
+def _indices_default(dimensions, dtype=int, sparse=False):
+    shape = (1,) * len(dimensions)
+    grid = []
+    for i, dim in enumerate(dimensions):
+        indices = arange(dim, dtype=dtype).reshape(shape[:i] + (dim,) + shape[i + 1 :])
+        if not sparse:
+            indices = broadcast_to(indices, dimensions)
+
+        grid.append(indices)
+
+    if sparse:
+        return tuple(grid)
+    else:
+        return asarray(grid)
+
+
+@create_numpy(_dtype_argreplacer, default=_indices_default)
 def indices(dimensions, dtype=int, sparse=False):
     return (mark_dtype(dtype),)
 
