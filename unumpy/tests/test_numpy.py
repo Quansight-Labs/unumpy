@@ -278,8 +278,10 @@ def test_functions_coerce(backend, method, args, kwargs):
         assert isinstance(ret, (bool,) + types)
     elif method in {np.place, np.put, np.put_along_axis, np.putmask, np.fill_diagonal}:
         assert ret is None
-    elif method in {np.nditer, np.ndenumerate, np.ndindex, np.lib.Arrayterator}:
+    elif method in {np.nditer, np.ndenumerate, np.ndindex}:
         assert isinstance(ret, collections.abc.Iterator)
+    elif method is np.lib.Arrayterator:
+        assert isinstance(ret, collections.abc.Iterable)
     else:
         assert isinstance(ret, types)
 

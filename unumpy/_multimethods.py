@@ -114,6 +114,13 @@ class ClassOverrideMetaWithConstructorAndGetAttr(
     pass
 
 
+def _call_first_argreplacer(args, kwargs, dispatchables):
+    def replacer(self, a, *args, **kwargs):
+        return (self, dispatchables[0]) + args, kwargs
+
+    return replacer(*args, **kwargs)
+
+
 def _reduce_argreplacer(args, kwargs, arrays):
     def reduce(a, axis=None, dtype=None, out=None, keepdims=False):
         kwargs = {}
