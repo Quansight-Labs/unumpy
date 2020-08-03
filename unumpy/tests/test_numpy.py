@@ -229,6 +229,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nditer, ([[1, 2, 3]],), {}),
         (np.ndenumerate, ([[1, 2], [3, 4]],), {}),
         (np.ndindex, (3, 2, 1), {}),
+        (np.lib.Arrayterator, ([[1, 2], [3, 4]], 2), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -277,7 +278,7 @@ def test_functions_coerce(backend, method, args, kwargs):
         assert isinstance(ret, (bool,) + types)
     elif method in {np.place, np.put, np.put_along_axis, np.putmask, np.fill_diagonal}:
         assert ret is None
-    elif method in {np.nditer, np.ndenumerate, np.ndindex}:
+    elif method in {np.nditer, np.ndenumerate, np.ndindex, np.lib.Arrayterator}:
         assert isinstance(ret, collections.abc.Iterator)
     else:
         assert isinstance(ret, types)
@@ -379,6 +380,10 @@ def test_multiple_output(backend, method, args, kwargs):
                 raise pytest.xfail(
                     reason="Sparse's methods for triangular matrices require an array with zero fill-values as argument."
                 )
+    except TypeError:
+        if backend is CupyBackend and method is np.unravel_index:
+            pytest.xfail(reason="cupy.unravel_index is broken in version 6.0")
+        raise
     if method is np.nested_iters:
         assert all(isinstance(ite, collections.abc.Iterator) for ite in ret)
     else:
