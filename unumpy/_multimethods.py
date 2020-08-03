@@ -1175,7 +1175,26 @@ def indices(dimensions, dtype=int, sparse=False):
     return (mark_dtype(dtype),)
 
 
-@create_numpy(_identity_argreplacer)
+def _ix__default(*args):
+    nd = len(args)
+    out = []
+    for i, arg in enumerate(args):
+        if not isinstance(arg, ndarray):
+            arg = asarray(arg)
+
+        if ndim(arg) != 1:
+            raise ValueError("Cross index must be 1 dimensional.")
+
+        if arg.dtype.kind == "b":
+            arg = nonzero(arg)[0]
+
+        shape = tuple(len(arg) if j == i else 1 for j in range(nd))
+        out.append(arg.reshape(shape))
+
+    return tuple(out)
+
+
+@create_numpy(_identity_argreplacer, default=_ix__default)
 def ix_(*args):
     return ()
 
