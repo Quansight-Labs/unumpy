@@ -229,7 +229,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nditer, ([[1, 2, 3]],), {}),
         (np.ndenumerate, ([[1, 2], [3, 4]],), {}),
         (np.ndindex, (3, 2, 1), {}),
-        (np.lib.Arrayterator, ([[1, 2], [3, 4]], 2), {}),
+        (np.lib.Arrayterator, ([[1, 2], [3, 4]],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):

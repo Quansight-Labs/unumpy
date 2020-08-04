@@ -1431,6 +1431,19 @@ def take_along_axis(arr, indices, axis):
     return (arr, indices)
 
 
+def _choose_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, choices, out=None, mode="raise"):
+        if isinstance(choices, (tuple, list)):
+            return (
+                (dispatchables[0], tuple(dispatchables[1:-1])),
+                dict(out=dispatchables[-1], mode=mode),
+            )
+        else:
+            return dispatchables[:-1], dict(out=dispatchables[-1], mode=mode)
+
+    return replacer(*args, **kwargs)
+
+
 def _choose_default(a, choices, out=None, mode="raise"):
     if mode == "raise":
         if any(a < 0) or any(a >= len(choices)):
@@ -1441,8 +1454,6 @@ def _choose_default(a, choices, out=None, mode="raise"):
         a = clip(a, 0, len(choices) - 1)
     else:
         raise TypeError("Clipmode not understood.")
-
-    choices = [asarray(choice) for choice in choices]
 
     a, *choices = broadcast_arrays(a, *choices)
 
@@ -1456,10 +1467,13 @@ def _choose_default(a, choices, out=None, mode="raise"):
         copyto(out, merged_array)
 
 
-@create_numpy(_self_out_argreplacer, default=_choose_default)
+@create_numpy(_choose_argreplacer, default=_choose_default)
 @all_of_type(ndarray)
 def choose(a, choices, out=None, mode="raise"):
-    return (a, mark_non_coercible(out))
+    if isinstance(choices, (tuple, list)):
+        return (a, *choices, mark_non_coercible(out))
+    else:
+        return (a, choices, mark_non_coercible(out))
 
 
 @create_numpy(_first2argreplacer)
