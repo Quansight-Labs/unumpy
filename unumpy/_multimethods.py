@@ -57,9 +57,24 @@ def _ureduce_argreplacer(args, kwargs, dispatchables):
 
 
 class ClassOverrideMeta(type):
-    def __init__(self, *args, **kwargs):
-        self._unwrapped = type(*args, **kwargs)
-        return super().__init__(*args, **kwargs)
+    def __new__(cls, name, bases, namespace):
+        bases_new = []
+        subclass = False
+        for b in bases:
+            if isinstance(b, cls):
+                subclass = True
+                bases_new.append(b._unwrapped)
+            else:
+                bases_new.append(b)
+
+        if subclass:
+            return type(name, tuple(bases_new), namespace)
+
+        return super().__new__(cls, name, bases, namespace)
+
+    def __init__(self, name, bases, namespace):
+        self._unwrapped = type(name, bases, namespace)
+        return super().__init__(name, bases, namespace)
 
     @property  # type: ignore
     @create_numpy(_identity_argreplacer, default=lambda self: self._unwrapped)

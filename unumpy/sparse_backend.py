@@ -55,6 +55,9 @@ def __ua_function__(method, args, kwargs):
     if method in _implementations:
         return _implementations[method](*args, **kwargs)
 
+    if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
+        return NotImplemented
+
     if not hasattr(sparse, method.__name__):
         return NotImplemented
 

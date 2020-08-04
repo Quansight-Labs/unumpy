@@ -25,6 +25,9 @@ try:
         if method in _implementations:
             return _implementations[method](*args, **kwargs)
 
+        if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
+            return NotImplemented
+
         if not hasattr(cp, method.__name__):
             return NotImplemented
 

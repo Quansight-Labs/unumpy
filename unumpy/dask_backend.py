@@ -138,6 +138,9 @@ class DaskBackend:
         if method in self._implementations:
             return self._implementations[method](*args, **kwargs)
 
+        if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
+            return NotImplemented
+
         if not hasattr(da, method.__name__):
             return NotImplemented
 
