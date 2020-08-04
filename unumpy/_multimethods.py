@@ -2020,7 +2020,7 @@ def _place_default(arr, mask, vals):
 
     raveled_mask = ravel(mask)
 
-    n = count_nonzero(raveled_mask)
+    n = int(count_nonzero(raveled_mask))
 
     if len(vals) < n:
         vals = list(itertools.islice(itertools.cycle(vals), n))
@@ -2089,7 +2089,26 @@ def put_along_axis(arr, indices, values, axis):
     return (arr, indices, values)
 
 
-@create_numpy(_first3argreplacer)
+def _putmask_default(a, mask, values):
+    if a.shape != mask.shape:
+        raise ValueError("mask and data must have the same shape.")
+
+    if values.shape == a.shape:
+        copyto(a, values.reshape(a.shape), where=mask)
+    else:
+        n = int(prod(a.shape))
+        values = ravel(values)
+
+        if len(values) < n:
+            values = list(itertools.islice(itertools.cycle(values), n))
+            values = asarray(values)
+        elif len(values_raveled) > n:
+            values = values[:n]
+
+        copyto(a, values.reshape(a.shape), where=mask)
+
+
+@create_numpy(_first3argreplacer, default=_putmask_default)
 @all_of_type(ndarray)
 def putmask(a, mask, values):
     return (a, mask, values)

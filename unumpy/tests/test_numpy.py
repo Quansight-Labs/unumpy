@@ -249,6 +249,8 @@ def test_functions_coerce(backend, method, args, kwargs):
                 pytest.xfail(reason="CuPy does not accept array repeats")
         raise
     except ValueError:
+        if isinstance(backend, DaskBackend) and method is np.place:
+            pytest.xfail(reason="Default relies on delete and copyto")
         if backend is CupyBackend and method in {np.argwhere, np.block}:
             pytest.xfail(reason="Default relies on array_like coercion")
         raise
