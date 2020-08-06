@@ -12,7 +12,24 @@ try:
 
     __ua_domain__ = "numpy"
 
-    _implementations: Dict = {}
+    def overridden_class(self):
+        module = self.__module__.split(".")
+        module = ".".join(m for m in module if m != "_multimethods")
+        return _get_from_name_domain(self.__name__, module)
+
+    _implementations: Dict = {
+        unumpy.ClassOverrideMeta.overridden_class.fget: overridden_class
+    }
+
+    def _get_from_name_domain(name, domain):
+        module = cp
+        domain_hierarchy = domain.split(".")
+        for d in domain_hierarchy[1:]:
+            module = getattr(module, d)
+        if hasattr(module, name):
+            return getattr(module, name)
+        else:
+            return NotImplemented
 
     def _implements(np_func):
         def inner(func):
