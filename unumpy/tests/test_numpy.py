@@ -213,6 +213,15 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nan_to_num, ([np.inf, np.NINF, np.nan],), {}),
         (np.real_if_close, ([2.1 + 4e-14j, 5.2 + 3e-15j],), {}),
         (np.interp, (2.5, [1, 2, 3], [3, 2, 0]), {}),
+        (np.median, ([[10, 7, 4], [3, 2, 1]],), {"axis": 0}),
+        (np.average, ([1, 2, 3, 4],), {}),
+        (np.nanmedian, ([[10.0, np.nan, 4], [3, 2, 1]],), {"axis": 0}),
+        (np.corrcoef, ([1, 2, 3, 4],), {}),
+        (np.correlate, ([1, 2, 3], [0, 1, 0.5]), {}),
+        (np.cov, ([[0, 1, 2], [2, 1, 0]],), {}),
+        (np.bincount, ([1, 2, 3, 4, 5],), {}),
+        (np.histogram_bin_edges, ([1, 2, 3, 4, 5],), {"bins": "auto"}),
+        (np.digitize, ([0.2, 6.4, 3.0, 1.6], [0.0, 1.0, 2.5, 4.0, 10.0]), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -288,8 +297,12 @@ def test_copyto(backend):
     [
         (np.prod, ([1],), {}),
         (np.sum, ([1],), {}),
+        (np.mean, ([[1, 2], [3, 4]],), {}),
         (np.std, ([1, 3, 2],), {}),
         (np.var, ([1, 3, 2],), {}),
+        (np.nanmean, ([[1, np.nan], [3, 4]],), {}),
+        (np.nanstd, ([[1, np.nan], [3, 4]],), {}),
+        (np.nanvar, ([[1, np.nan], [3, 4]],), {}),
     ],
 )
 def test_functions_coerce_with_dtype(backend, method, args, kwargs):
@@ -326,6 +339,9 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.dsplit, ([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], 2), {}),
         (np.hsplit, ([[1, 2], [3, 4]], 2), {}),
         (np.vsplit, ([[1, 2], [3, 4]], 2), {}),
+        (np.histogram, ([1, 2, 1],), {"bins": [0, 1, 2, 3]}),
+        (np.histogram2d, ([1, 2], [1, 2]), {"bins": 2}),
+        (np.histogramdd, ([[1, 2], [1, 2]],), {"bins": 2}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):
@@ -338,7 +354,12 @@ def test_multiple_output(backend, method, args, kwargs):
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    assert all(isinstance(arr, types) for arr in ret)
+    if (isinstance(backend, DaskBackend) and method is np.histogram) or (
+        backend is NumpyBackend and method is np.histogramdd
+    ):
+        assert all(isinstance(arr, types + (list,)) for arr in ret)
+    else:
+        assert all(isinstance(arr, types) for arr in ret)
 
     for arr in ret:
         if isinstance(arr, da.Array):
