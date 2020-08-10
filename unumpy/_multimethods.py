@@ -860,7 +860,52 @@ def nanquantile(
     return (a, q, mark_non_coercible(out))
 
 
-@create_numpy(_self_argreplacer)
+def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=False):
+    if overwrite_input:
+        return NotImplemented
+
+    nd = ndim(a)
+
+    def median1d(v):
+        v_sorted = sort(v, axis=None)
+        N = len(v_sorted)
+
+        if N % 2 == 0:
+            median = (v_sorted[N // 2 - 1] + v_sorted[N // 2]) / 2
+        else:
+            median = v_sorted[(N - 1) // 2]
+
+        return median
+
+    if axis is None:
+        res = apply_along_axis(median1d, 0, ravel(a)).astype(float)
+
+        if keepdims:
+            res = asarray(res).reshape((1,) * nd)
+    else:
+        if not isinstance(axis, collections.abc.Sequence):
+            axis = (axis,)
+
+        axis = _normalize_axis(nd, axis)
+
+        res = a
+        for ax in axis:
+            res = apply_along_axis(median1d, ax, res).astype(float)
+
+            if keepdims:
+                res = expand_dims(res, ax)
+
+    if out is None:
+        return res
+    else:
+        if res.shape != out.shape:
+            raise ValueError("out parameter must have the same shape as the output")
+
+        copyto(out, res, casting="unsafe")
+        return out
+
+
+@create_numpy(_self_argreplacer, default=_median_default)
 @all_of_type(ndarray)
 def median(a, axis=None, out=None, overwrite_input=False, keepdims=False):
     return (a, mark_non_coercible(out))
@@ -1077,7 +1122,7 @@ def union1d(ar1, ar2):
 
 @create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
-def sort(a, axis=None, kind=None, order=None):
+def sort(a, axis=-1, kind=None, order=None):
     return (a,)
 
 
