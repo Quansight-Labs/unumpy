@@ -1154,10 +1154,10 @@ def pad(array, pad_width, mode, **kwargs):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_first2argreplacer)
 @all_of_type(ndarray)
 def searchsorted(a, v, side="left", sorter=None):
-    return (a,)
+    return (a, v)
 
 
 @create_numpy(_first2argreplacer)
@@ -2202,7 +2202,14 @@ def _interp_default(x, xp, fp, left=None, right=None, period=None):
     return result
 
 
-@create_numpy(_self_argreplacer, default=_interp_default)
+def _interp_argreplacer(args, kwargs, dispatchables):
+    def interp(x, xp, fp, left=None, right=None, period=None):
+        return (dispatchables, dict(left=left, right=right, period=period))
+
+    return interp(*args, **kwargs)
+
+
+@create_numpy(_interp_argreplacer, default=_interp_default)
 @all_of_type(ndarray)
 def interp(x, xp, fp, left=None, right=None, period=None):
-    return (x,)
+    return (x, xp, fp)
