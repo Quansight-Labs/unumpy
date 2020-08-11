@@ -175,7 +175,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.ediff1d, ([1, 2, 4, 7, 0],), {}),
         (np.cross, ([1, 2, 3], [4, 5, 6]), {}),
         (np.trapz, ([1, 2, 3],), {}),
-        (np.i0, ([0.0, 1.0 + 2j],), {}),
+        (np.i0, ([0.0, 1.0],), {}),
         (np.sinc, ([0, 1, 2],), {}),
         (np.isclose, ([1, 3, 2], [3, 2, 1]), {}),
         (np.allclose, ([1, 3, 2], [3, 2, 1]), {}),
