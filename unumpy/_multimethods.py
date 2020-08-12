@@ -124,20 +124,6 @@ class ClassOverrideMetaWithConstructorAndGetAttr(
     pass
 
 
-def _reduce_argreplacer(args, kwargs, arrays):
-    def reduce(a, axis=None, dtype=None, out=None, keepdims=False):
-        kwargs = {}
-        if dtype is not None:
-            kwargs["dtype"] = dtype
-
-        if keepdims is not False:
-            kwargs["keepdims"] = keepdims
-
-        return ((arrays[0],), dict(axis=axis, out=arrays[1], **kwargs))
-
-    return reduce(*args, **kwargs)
-
-
 def _first2argreplacer(args, kwargs, arrays):
     def func(a, b, *args, **kw):
         kw_out = kw.copy()
@@ -647,37 +633,37 @@ def reduce_impl(red_ufunc: ufunc):
     return inner
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(add))
+@create_numpy(_self_dtype_argreplacer, default=reduce_impl(add))
 @all_of_type(ndarray)
 def sum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(multiply))
+@create_numpy(_self_dtype_argreplacer, default=reduce_impl(multiply))
 @all_of_type(ndarray)
 def prod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(minimum))
+@create_numpy(_self_argreplacer, default=reduce_impl(minimum))
 @all_of_type(ndarray)
 def min(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(maximum))
+@create_numpy(_self_argreplacer, default=reduce_impl(maximum))
 @all_of_type(ndarray)
 def max(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_or))
+@create_numpy(_self_argreplacer, default=reduce_impl(logical_or))
 @all_of_type(ndarray)
 def any(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_and))
+@create_numpy(_self_argreplacer, default=reduce_impl(logical_and))
 @all_of_type(ndarray)
 def all(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
@@ -722,7 +708,7 @@ def isscalar(element):
     return ()
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def argmin(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
@@ -734,7 +720,7 @@ def nanargmin(a, axis=None):
     return (a,)
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def argmax(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
@@ -746,28 +732,34 @@ def nanargmax(a, axis=None):
     return (a,)
 
 
-@create_numpy(_reduce_argreplacer)
+amin = min
+
+
+amax = max
+
+
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def nanmin(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def nanmax(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def nansum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def nanprod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
 @create_numpy(_self_dtype_argreplacer)
@@ -930,16 +922,16 @@ def mean(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
 @create_numpy(_self_argreplacer)
@@ -1013,10 +1005,26 @@ def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None, aweights=N
     return (m, y, fweights, aweights)
 
 
-@create_numpy(_self_weights_argreplacer)
+def _histogram_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, bins=10, range=None, normed=None, weights=None, density=None):
+        return (
+            (dispatchables[0],),
+            dict(
+                bins=dispatchables[1],
+                range=range,
+                normed=normed,
+                weights=dispatchables[2],
+                density=density,
+            ),
+        )
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_histogram_argreplacer)
 @all_of_type(ndarray)
 def histogram(a, bins=10, range=None, normed=None, weights=None, density=None):
-    return (a, weights)
+    return (a, bins, weights)
 
 
 @create_numpy(_self_weights_argreplacer)
@@ -1055,7 +1063,7 @@ def _ptp_default(a, axis=None, out=None, keepdims=False):
     return result
 
 
-@create_numpy(_reduce_argreplacer, default=_ptp_default)
+@create_numpy(_self_argreplacer, default=_ptp_default)
 @all_of_type(ndarray)
 def ptp(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
@@ -2183,7 +2191,7 @@ def _apply_over_axes_default(func, a, axes):
 
     res = a
     for axis in axes:
-        res = func(res, axis)
+        res = func(res, axis=axis)
 
         res_nd = ndim(res)
         if res_nd < nd - 1:
