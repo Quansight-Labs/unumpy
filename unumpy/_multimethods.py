@@ -858,42 +858,50 @@ def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=Fals
 
     nd = ndim(a)
 
-    def median1d(v):
-        v_sorted = sort(v, axis=None)
-        N = len(v_sorted)
-
-        if N % 2 == 0:
-            median = (v_sorted[N // 2 - 1] + v_sorted[N // 2]) / 2
-        else:
-            median = v_sorted[(N - 1) // 2]
-
-        return median
-
     if axis is None:
-        res = apply_along_axis(median1d, 0, ravel(a)).astype(float)
-
-        if keepdims:
-            res = asarray(res).reshape((1,) * nd)
+        a = ravel(a)
+        dims = (1,) * nd
     else:
         if not isinstance(axis, collections.abc.Sequence):
             axis = (axis,)
 
         axis = _normalize_axis(nd, axis)
+        unselected_axis = tuple(set(range(nd)) - set(axis))
 
-        res = a
+        dims = list(a.shape)
         for ax in axis:
-            res = apply_along_axis(median1d, ax, res).astype(float)
+            dims[ax] = 1
+        dims = tuple(dims)
 
-            if keepdims:
-                res = expand_dims(res, ax)
+        a = transpose(a, unselected_axis + axis)
+        a = a.reshape(a.shape[: len(unselected_axis)] + (-1,))
+
+    axis = -1
+
+    a = sort(a, axis=-1)
+
+    N = a.shape[axis]
+
+    indexer = [slice(None)] * ndim(a)
+    index = N // 2
+    if N % 2 == 0:
+        indexer[axis] = slice(index - 1, index + 1)
+    else:
+        indexer[axis] = slice(index, index + 1)
+    indexer = tuple(indexer)
+
+    a = mean(a[indexer], axis=axis)
+
+    if keepdims:
+        a = a.reshape(dims)
 
     if out is None:
-        return res
+        return a
     else:
-        if res.shape != out.shape:
+        if a.shape != out.shape:
             raise ValueError("out parameter must have the same shape as the output")
 
-        copyto(out, res, casting="unsafe")
+        copyto(out, a, casting="unsafe")
         return out
 
 
