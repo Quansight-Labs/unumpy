@@ -485,7 +485,7 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
             ),
             {},
         ),
-        (np.linalg.lstsq, ([[3, 1], [1, 2]], [9, 8]), {"rcond": None}),
+        (np.linalg.lstsq, ([[3, 1], [1, 2]], [9, 8]), {}),
         (np.linalg.inv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
         (np.linalg.pinv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
         (np.linalg.tensorinv, (np.eye(4 * 6).reshape((4, 6, 8, 3)),), {}),
@@ -494,15 +494,31 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
 def test_linalg(backend, method, args, kwargs):
     backend, types = backend
     try:
-        with ua.set_backend(NumpyBackend, coerce=True):
+        with ua.set_backend(backend, coerce=True):
             ret = method(*args, **kwargs)
     except ua.BackendNotImplementedError:
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    if isinstance(ret, da.Array):
-        ret.compute()
+    if method in {
+        np.linalg.qr,
+        np.linalg.svd,
+        np.linalg.eig,
+        np.linalg.eigh,
+        np.linalg.slogdet,
+        np.linalg.lstsq,
+    }:
+        assert all(isinstance(arr, types) for arr in ret)
+
+        for arr in ret:
+            if isinstance(arr, da.Array):
+                arr.compute()
+    else:
+        assert isinstance(ret, types)
+
+        if isinstance(ret, da.Array):
+            ret.compute()
 
 
 @pytest.mark.parametrize(
