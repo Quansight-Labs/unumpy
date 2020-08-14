@@ -8,7 +8,7 @@ from uarray import (
     set_state,
     set_backend,
 )
-from unumpy import ufunc, ufunc_list, ndarray
+from unumpy import ufunc, ufunc_list, ndarray, dtype
 import unumpy
 import functools
 import sys
@@ -18,22 +18,25 @@ import random
 
 from typing import Dict
 
+_class_mapping = {ndarray: da.Array, dtype: np.dtype, ufunc: da.ufunc.ufunc}
+
 
 def overridden_class(self):
-    if self is ndarray:
-        return da.Array
-    if self is ufunc:
-        return da.ufunc.ufunc
+    if self in _class_mapping:
+        return _class_mapping[self]
     module = self.__module__.split(".")
     module = ".".join(m for m in module if m != "_multimethods")
     return _get_from_name_domain(self.__name__, module)
 
 
 def _get_from_name_domain(name, domain):
-    module = np
+    module = da
     domain_hierarchy = domain.split(".")
     for d in domain_hierarchy[1:]:
-        module = getattr(module, d)
+        if hasattr(module, d):
+            module = getattr(module, d)
+        else:
+            return NotImplemented
     if hasattr(module, name):
         return getattr(module, name)
     else:
@@ -138,10 +141,14 @@ class DaskBackend:
         if method in self._implementations:
             return self._implementations[method](*args, **kwargs)
 
-        if not hasattr(da, method.__name__):
+        if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
             return NotImplemented
 
-        return getattr(da, method.__name__)(*args, **kwargs)
+        dask_method = _get_from_name_domain(method.__name__, method.domain)
+        if dask_method is NotImplemented:
+            return NotImplemented
+
+        return dask_method(*args, **kwargs)
 
     @wrap_single_convertor_instance
     def __ua_convert__(self, value, dispatch_type, coerce):

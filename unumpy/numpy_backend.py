@@ -42,6 +42,9 @@ def __ua_function__(method, args, kwargs):
     if method in _implementations:
         return _implementations[method](*args, **kwargs)
 
+    if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
+        return NotImplemented
+
     method_numpy = _get_from_name_domain(method.__name__, method.domain)
     if method_numpy is NotImplemented:
         return NotImplemented

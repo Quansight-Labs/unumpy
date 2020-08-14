@@ -13,6 +13,7 @@ from .._multimethods import (
     mark_dtype,
     _first_argreplacer,
     _first2argreplacer,
+    ndim,
 )
 
 __all__ = [
@@ -120,7 +121,7 @@ def cond_default(x, p=None):
         raise ValueError("Array must be at least two-dimensional.")
 
 
-@create_numpy(_self_argreplacer, default=cond_default)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def cond(x, p=None):
     return (x,)

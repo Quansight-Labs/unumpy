@@ -176,7 +176,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.ediff1d, ([1, 2, 4, 7, 0],), {}),
         (np.cross, ([1, 2, 3], [4, 5, 6]), {}),
         (np.trapz, ([1, 2, 3],), {}),
-        (np.i0, ([0.0, 1.0 + 2j],), {}),
+        (np.i0, ([0.0, 1.0],), {}),
         (np.sinc, ([0, 1, 2],), {}),
         (np.isclose, ([1, 3, 2], [3, 2, 1]), {}),
         (np.allclose, ([1, 3, 2], [3, 2, 1]), {}),
@@ -538,7 +538,7 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
             ),
             {},
         ),
-        (np.linalg.lstsq, ([[3, 1], [1, 2]], [9, 8]), {"rcond": None}),
+        (np.linalg.lstsq, ([[3, 1], [1, 2]], [9, 8]), {}),
         (np.linalg.inv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
         (np.linalg.pinv, ([[1.0, 2.0], [3.0, 4.0]],), {}),
         (np.linalg.tensorinv, (np.eye(4 * 6).reshape((4, 6, 8, 3)),), {}),
@@ -547,15 +547,31 @@ def test_ufuncs_results(backend, method, args, kwargs, res):
 def test_linalg(backend, method, args, kwargs):
     backend, types = backend
     try:
-        with ua.set_backend(NumpyBackend, coerce=True):
+        with ua.set_backend(backend, coerce=True):
             ret = method(*args, **kwargs)
     except ua.BackendNotImplementedError:
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
 
-    if isinstance(ret, da.Array):
-        ret.compute()
+    if method in {
+        np.linalg.qr,
+        np.linalg.svd,
+        np.linalg.eig,
+        np.linalg.eigh,
+        np.linalg.slogdet,
+        np.linalg.lstsq,
+    }:
+        assert all(isinstance(arr, types) for arr in ret)
+
+        for arr in ret:
+            if isinstance(arr, da.Array):
+                arr.compute()
+    else:
+        assert isinstance(ret, types)
+
+        if isinstance(ret, da.Array):
+            ret.compute()
 
 
 @pytest.mark.parametrize(
@@ -641,3 +657,11 @@ def test_class_overriding():
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
         assert issubclass(onp.ufunc, np.ufunc)
+
+    if hasattr(CupyBackend, "__ua_function__"):
+        with ua.set_backend(CupyBackend, coerce=True):
+            assert isinstance(cp.add, np.ufunc)
+            assert isinstance(cp.dtype("float64"), np.dtype)
+            assert np.dtype("float64") == cp.float64
+            assert isinstance(np.dtype("float64"), cp.dtype)
+            assert issubclass(cp.ufunc, np.ufunc)

@@ -57,9 +57,24 @@ def _ureduce_argreplacer(args, kwargs, dispatchables):
 
 
 class ClassOverrideMeta(type):
-    def __init__(self, *args, **kwargs):
-        self._unwrapped = type(*args, **kwargs)
-        return super().__init__(*args, **kwargs)
+    def __new__(cls, name, bases, namespace):
+        bases_new = []
+        subclass = False
+        for b in bases:
+            if isinstance(b, cls):
+                subclass = True
+                bases_new.append(b._unwrapped)
+            else:
+                bases_new.append(b)
+
+        if subclass:
+            return type(name, tuple(bases_new), namespace)
+
+        return super().__new__(cls, name, bases, namespace)
+
+    def __init__(self, name, bases, namespace):
+        self._unwrapped = type(name, bases, namespace)
+        return super().__init__(name, bases, namespace)
 
     @property  # type: ignore
     @create_numpy(_identity_argreplacer, default=lambda self: self._unwrapped)
@@ -1384,10 +1399,10 @@ def pad(array, pad_width, mode, **kwargs):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_first2argreplacer)
 @all_of_type(ndarray)
 def searchsorted(a, v, side="left", sorter=None):
-    return (a,)
+    return (a, v)
 
 
 def _take_default(a, indices, axis=None, out=None, mode="raise"):
@@ -2685,7 +2700,14 @@ def _interp_default(x, xp, fp, left=None, right=None, period=None):
     return result
 
 
-@create_numpy(_self_argreplacer, default=_interp_default)
+def _interp_argreplacer(args, kwargs, dispatchables):
+    def interp(x, xp, fp, left=None, right=None, period=None):
+        return (dispatchables, dict(left=left, right=right, period=period))
+
+    return interp(*args, **kwargs)
+
+
+@create_numpy(_interp_argreplacer, default=_interp_default)
 @all_of_type(ndarray)
 def interp(x, xp, fp, left=None, right=None, period=None):
-    return (x,)
+    return (x, xp, fp)

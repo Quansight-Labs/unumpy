@@ -12,7 +12,27 @@ try:
 
     __ua_domain__ = "numpy"
 
-    _implementations: Dict = {}
+    def overridden_class(self):
+        module = self.__module__.split(".")
+        module = ".".join(m for m in module if m != "_multimethods")
+        return _get_from_name_domain(self.__name__, module)
+
+    _implementations: Dict = {
+        unumpy.ClassOverrideMeta.overridden_class.fget: overridden_class
+    }
+
+    def _get_from_name_domain(name, domain):
+        module = cp
+        domain_hierarchy = domain.split(".")
+        for d in domain_hierarchy[1:]:
+            if hasattr(module, d):
+                module = getattr(module, d)
+            else:
+                return NotImplemented
+        if hasattr(module, name):
+            return getattr(module, name)
+        else:
+            return NotImplemented
 
     def _implements(np_func):
         def inner(func):
@@ -25,10 +45,14 @@ try:
         if method in _implementations:
             return _implementations[method](*args, **kwargs)
 
-        if not hasattr(cp, method.__name__):
+        if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
             return NotImplemented
 
-        return getattr(cp, method.__name__)(*args, **kwargs)
+        cupy_method = _get_from_name_domain(method.__name__, method.domain)
+        if cupy_method is NotImplemented:
+            return NotImplemented
+
+        return cupy_method(*args, **kwargs)
 
     @wrap_single_convertor
     def __ua_convert__(value, dispatch_type, coerce):
