@@ -1,7 +1,7 @@
 import numpy as np
 import sparse
 from uarray import Dispatchable, wrap_single_convertor
-from unumpy import ufunc, ufunc_list, ndarray
+from unumpy import ufunc, ufunc_list, ndarray, dtype
 import unumpy
 import functools
 
@@ -23,9 +23,12 @@ def array(x, *args, **kwargs):
     return sparse.COO.from_numpy(np.asarray(x))
 
 
+_class_mapping = {ndarray: sparse.SparseArray, dtype: np.dtype, ufunc: np.ufunc}
+
+
 def overridden_class(self):
-    if self is ndarray:
-        return sparse.SparseArray
+    if self in _class_mapping:
+        return _class_mapping[self]
     module = self.__module__.split(".")
     module = ".".join(m for m in module if m != "_multimethods")
     return _get_from_name_domain(self.__name__, module)
@@ -41,10 +44,13 @@ _implementations: Dict = {
 
 
 def _get_from_name_domain(name, domain):
-    module = np
+    module = sparse
     domain_hierarchy = domain.split(".")
     for d in domain_hierarchy[1:]:
-        module = getattr(module, d)
+        if hasattr(module, d):
+            module = getattr(module, d)
+        else:
+            return NotImplemented
     if hasattr(module, name):
         return getattr(module, name)
     else:
@@ -58,10 +64,11 @@ def __ua_function__(method, args, kwargs):
     if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
         return NotImplemented
 
-    if not hasattr(sparse, method.__name__):
+    sparse_method = _get_from_name_domain(method.__name__, method.domain)
+    if sparse_method is NotImplemented:
         return NotImplemented
 
-    return getattr(sparse, method.__name__)(*args, **kwargs)
+    return sparse_method(*args, **kwargs)
 
 
 @wrap_single_convertor
