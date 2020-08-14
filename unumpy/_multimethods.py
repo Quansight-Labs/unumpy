@@ -924,7 +924,54 @@ def average(a, axis=None, weights=None, returned=False):
     return (a, weights)
 
 
-@create_numpy(_self_dtype_argreplacer)
+def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
+    nd = ndim(a)
+
+    if axis is None:
+        a = ravel(a)
+        dims = (1,) * nd
+    else:
+        if not isinstance(axis, collections.abc.Sequence):
+            axis = (axis,)
+
+        axis = _normalize_axis(nd, axis)
+        unselected_axis = tuple(set(range(nd)) - set(axis))
+
+        dims = list(a.shape)
+        for ax in axis:
+            dims[ax] = 1
+        dims = tuple(dims)
+
+        a = transpose(a, unselected_axis + axis)
+        a = a.reshape(a.shape[: len(unselected_axis)] + (-1,))
+
+    axis = -1
+
+    count = a.shape[axis]
+
+    if dtype is None:
+        if a.dtype.name.startswith("int"):
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    a = sum(a, axis=axis) / count
+    a = a.astype(dtype)
+
+    if keepdims:
+        a = a.reshape(dims)
+
+    if out is None:
+        return a
+    else:
+        if a.shape != out.shape:
+            raise ValueError("out parameter must have the same shape as the output")
+
+        copyto(out, a, casting="unsafe")
+        return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_mean_default)
 @all_of_type(ndarray)
 def mean(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
