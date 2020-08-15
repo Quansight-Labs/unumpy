@@ -616,7 +616,7 @@ def test_functional(backend, method, args, kwargs):
     [
         (np.c_, ([1, 2, 3], [4, 5, 6])),
         (np.r_, ([1, 2, 3], [4, 5, 6])),
-        (np.s_, (slice(2, None, 2))),
+        (np.s_, (slice(2, None, 2),)),
     ],
 )
 def test_class_getitem(backend, method, args):
@@ -626,14 +626,13 @@ def test_class_getitem(backend, method, args):
             ret = method[args]
     except ua.BackendNotImplementedError:
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
-            raise pytest.xfail(
-                reason="The backend has no implementation for this class."
-            )
+            raise
+        pytest.xfail(reason="The backend has no implementation for this class.")
 
     if method is np.s_:
-        assert isinstance(ret, slice)
+        all(isinstance(s, slice) for s in ret)
     else:
-        assert isinstance(ret, onp.ndarray)
+        assert isinstance(ret, types)
 
 
 def test_class_overriding():

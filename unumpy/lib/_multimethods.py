@@ -19,6 +19,7 @@ class ClassOverrideMetaForArrayterator(ClassOverrideMetaWithGetAttr):
     )
     @all_of_type(ndarray)
     def __call__(self, var, buf_size=None):
+        self._unwrapped = NotImplemented
         return (var,)
 
 

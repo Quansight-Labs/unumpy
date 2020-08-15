@@ -102,6 +102,7 @@ class ClassOverrideMetaWithConstructor(ClassOverrideMeta):
         default=lambda self, *a, **kw: self.overridden_class(*a, **kw),
     )
     def __call__(self, *args, **kwargs):
+        self._unwrapped = NotImplemented
         return ()
 
 
@@ -111,15 +112,6 @@ class ClassOverrideMetaWithGetAttr(ClassOverrideMeta):
         default=lambda self, name: getattr(self.overridden_class, name),
     )
     def __getattr__(self, name):
-        return ()
-
-
-class ClassOverrideMetaWithGetItem(ClassOverrideMeta):
-    @create_numpy(
-        _identity_argreplacer,
-        default=lambda self, key: self.overridden_class.__getitem__(key),
-    )
-    def __getitem__(self, key):
         return ()
 
 
@@ -1104,18 +1096,6 @@ def partition(a, kth, axis=-1, kind="introselect", order=None):
 @all_of_type(ndarray)
 def argpartition(a, kth, axis=-1, kind="introselect", order=None):
     return (a,)
-
-
-class c_(metaclass=ClassOverrideMetaWithGetItem):
-    pass
-
-
-class r_(metaclass=ClassOverrideMetaWithGetItem):
-    pass
-
-
-class s_(metaclass=ClassOverrideMetaWithGetItem):
-    pass
 
 
 @create_numpy(_self_argreplacer)
