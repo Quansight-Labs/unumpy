@@ -2,6 +2,7 @@ import numpy as np
 import sparse
 from uarray import Dispatchable, wrap_single_convertor
 from unumpy import ufunc, ufunc_list, ndarray, dtype
+from unumpy.random import RandomState
 import unumpy
 import functools
 
@@ -23,7 +24,12 @@ def array(x, *args, **kwargs):
     return sparse.COO.from_numpy(np.asarray(x))
 
 
-_class_mapping = {ndarray: sparse.SparseArray, dtype: np.dtype, ufunc: np.ufunc}
+_class_mapping = {
+    ndarray: sparse.SparseArray,
+    dtype: np.dtype,
+    ufunc: np.ufunc,
+    RandomState: np.random.mtrand.RandomState,
+}
 
 
 def overridden_class(self):

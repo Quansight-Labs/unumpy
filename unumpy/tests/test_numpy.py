@@ -1,3 +1,4 @@
+import collections
 import pytest
 import uarray as ua
 import unumpy as np
@@ -15,9 +16,15 @@ ua.set_global_backend(NumpyBackend)
 
 dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
-    (NumpyBackend, (onp.ndarray, onp.generic, onp.ufunc)),
-    (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc)),
-    (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
+    (
+        NumpyBackend,
+        (onp.ndarray, onp.generic, onp.ufunc, onp.random.mtrand.RandomState),
+    ),
+    (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc, da.random.RandomState)),
+    (
+        SparseBackend,
+        (sparse.SparseArray, onp.ndarray, onp.generic, onp.random.mtrand.RandomState),
+    ),
     pytest.param(
         (TorchBackend, (torch.Tensor,)),
         marks=pytest.mark.xfail(reason="PyTorch not fully NumPy compatible."),
@@ -189,6 +196,7 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.array_equal, ([1, 2, 3], [1, 2, 3]), {}),
         (np.array_equiv, ([1, 2], [[1, 2], [1, 2]]), {}),
         (np.diag, ([1, 2, 3],), {}),
+        (np.diagonal, ([[0, 1], [2, 3]],), {}),
         (np.diagflat, ([[1, 2], [3, 4]],), {}),
         (np.copy, ([1, 2, 3],), {}),
         (np.tril, ([[1, 2], [3, 4]],), {}),
@@ -213,6 +221,21 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.nan_to_num, ([np.inf, np.NINF, np.nan],), {}),
         (np.real_if_close, ([2.1 + 4e-14j, 5.2 + 3e-15j],), {}),
         (np.interp, (2.5, [1, 2, 3], [3, 2, 0]), {}),
+        (np.indices, ((2, 3),), {}),
+        (np.ravel_multi_index, ([[3, 6, 6], [4, 5, 1]], (7, 6)), {}),
+        (np.take, ([4, 3, 5, 7, 6, 8], [0, 1, 4]), {}),
+        (np.take_along_axis, ([[1, 2, 3], [4, 5, 6]], [[0, -1]], 1), {}),
+        (np.choose, ([1, 2, 0], [[0, 1, 2], [10, 11, 12], [20, 21, 22]]), {}),
+        (np.select, ([[True, False], [False, True]], [[0, 0], [1, 1]]), {}),
+        (np.place, ([[1, 2], [3, 4]], [[False, False], [True, True]], [-99, 99]), {}),
+        (np.put, ([0, 1, 2, 3, 4, 5], [0, 2], [-44, -55]), {}),
+        (np.put_along_axis, ([[10, 30, 20], [60, 40, 50]], [[0], [1]], 99, 1), {}),
+        (np.putmask, ([[1, 2], [3, 4]], [[False, False], [True, True]], [-99, 99]), {}),
+        (np.fill_diagonal, ([[0, 0], [0, 0]], 1), {}),
+        (np.nditer, ([[1, 2, 3]],), {}),
+        (np.ndenumerate, ([[1, 2], [3, 4]],), {}),
+        (np.ndindex, (3, 2, 1), {}),
+        (np.lib.Arrayterator, ([[1, 2], [3, 4]],), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -232,6 +255,8 @@ def test_functions_coerce(backend, method, args, kwargs):
                 pytest.xfail(reason="CuPy does not accept array repeats")
         raise
     except ValueError:
+        if isinstance(backend, DaskBackend) and method is np.place:
+            pytest.xfail(reason="Default relies on delete and copyto")
         if backend is CupyBackend and method in {np.argwhere, np.block}:
             pytest.xfail(reason="Default relies on array_like coercion")
         raise
@@ -259,6 +284,12 @@ def test_functions_coerce(backend, method, args, kwargs):
         np.array_equiv,
     ):
         assert isinstance(ret, (bool,) + types)
+    elif method in {np.place, np.put, np.put_along_axis, np.putmask, np.fill_diagonal}:
+        assert ret is None
+    elif method in {np.nditer, np.ndenumerate, np.ndindex}:
+        assert isinstance(ret, collections.abc.Iterator)
+    elif method is np.lib.Arrayterator:
+        assert isinstance(ret, collections.abc.Iterable)
     else:
         assert isinstance(ret, types)
 
@@ -326,6 +357,16 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.dsplit, ([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], 2), {}),
         (np.hsplit, ([[1, 2], [3, 4]], 2), {}),
         (np.vsplit, ([[1, 2], [3, 4]], 2), {}),
+        (np.ix_, ([0, 1], [2, 4]), {}),
+        (np.unravel_index, ([22, 41, 37], (7, 6)), {}),
+        (np.diag_indices, (4,), {}),
+        (np.diag_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.mask_indices, (3, np.triu), {}),
+        (np.tril_indices, (4,), {}),
+        (np.tril_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.triu_indices, (4,), {}),
+        (np.triu_indices_from, ([[1, 2], [3, 4]],), {}),
+        (np.nested_iters, ([[0, 1], [2, 3]], [[0], [1]]), {}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):
@@ -337,8 +378,26 @@ def test_multiple_output(backend, method, args, kwargs):
         if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
             raise
         pytest.xfail(reason="The backend has no implementation for this ufunc.")
-
-    assert all(isinstance(arr, types) for arr in ret)
+    except ValueError:
+        if backend is SparseBackend:
+            if method in {
+                np.mask_indices,
+                np.tril_indices,
+                np.tril_indices_from,
+                np.triu_indices,
+                np.triu_indices_from,
+            }:
+                raise pytest.xfail(
+                    reason="Sparse's methods for triangular matrices require an array with zero fill-values as argument."
+                )
+    except TypeError:
+        if backend is CupyBackend and method is np.unravel_index:
+            pytest.xfail(reason="cupy.unravel_index is broken in version 6.0")
+        raise
+    if method is np.nested_iters:
+        assert all(isinstance(ite, collections.abc.Iterator) for ite in ret)
+    else:
+        assert all(isinstance(arr, types) for arr in ret)
 
     for arr in ret:
         if isinstance(arr, da.Array):
@@ -524,6 +583,86 @@ def test_linalg(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.random.RandomState, (42,), {}),
+        # (np.random.Generator, (), {}),
+        (np.random.rand, (1, 2), {}),
+        (np.random.randn, (1, 2), {}),
+        (np.random.randint, ([1, 2],), {}),
+        (np.random.random_integers, (2,), {}),
+        (np.random.random_sample, (), {"size": 2}),
+        (np.random.random, (), {"size": 2}),
+        (np.random.ranf, (), {"size": 2}),
+        (np.random.sample, (), {"size": 2}),
+        (np.random.choice, ([1, 2],), {}),
+        (np.random.bytes, (10,), {}),
+        (np.random.shuffle, ([1, 2, 3, 4],), {}),
+        (np.random.permutation, ([1, 2, 3, 4],), {}),
+        (np.random.beta, (1, 2), {"size": 2}),
+        (np.random.binomial, (10, 0.5), {"size": 2}),
+        (np.random.chisquare, (2, 4), {}),
+        (np.random.dirichlet, ((10, 5, 3),), {}),
+        (np.random.exponential, (), {"size": 2}),
+        (np.random.f, (1.0, 48.0), {"size": 2}),
+        (np.random.gamma, (2.0, 2.0), {"size": 2}),
+        (np.random.geometric, (0.35,), {"size": 2}),
+        (np.random.gumbel, (0.0, 0.1), {"size": 2}),
+        (np.random.hypergeometric, (100, 2, 10), {"size": 2}),
+        (np.random.laplace, (0.0, 1.0), {"size": 2}),
+        (np.random.logistic, (10, 1), {"size": 2}),
+        (np.random.lognormal, (3.0, 1.0), {"size": 2}),
+        (np.random.logseries, (0.6,), {"size": 2}),
+        (np.random.multinomial, (20, [1 / 6.0] * 6), {}),
+        (np.random.multivariate_normal, ([0, 0], [[1, 0], [0, 100]]), {}),
+        (np.random.negative_binomial, (1, 0.1), {"size": 2}),
+        (np.random.noncentral_chisquare, (3, 20), {"size": 2}),
+        (np.random.noncentral_f, (3, 20, 3.0), {"size": 2}),
+        (np.random.normal, (0, 0.1), {"size": 2}),
+        (np.random.pareto, (3.0,), {"size": 2}),
+        (np.random.poisson, (5,), {"size": 2}),
+        (np.random.power, (5.0,), {"size": 2}),
+        (np.random.rayleigh, (3,), {"size": 2}),
+        (np.random.standard_cauchy, (), {"size": 2}),
+        (np.random.standard_exponential, (), {"size": 2}),
+        (np.random.standard_gamma, (2.0,), {"size": 2}),
+        (np.random.standard_normal, (), {"size": 2}),
+        (np.random.standard_t, (10,), {"size": 2}),
+        (np.random.triangular, (-3, 0, 8), {"size": 2}),
+        (np.random.uniform, (-1, 0), {"size": 2}),
+        (np.random.vonmises, (0.0, 4.0), {"size": 2}),
+        (np.random.wald, (3, 2), {"size": 2}),
+        (np.random.weibull, (5.0,), {"size": 2}),
+        (np.random.zipf, (2.0,), {"size": 2}),
+        (np.random.seed, (), {}),
+        (np.random.get_state, (), {}),
+        # (np.random.set_state, (), {}),
+    ],
+)
+def test_random(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method(*args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if method is np.random.bytes:
+        assert isinstance(ret, bytes)
+    elif method in {np.random.shuffle, np.random.seed}:
+        assert ret is None
+    elif method is np.random.get_state:
+        assert isinstance(ret, tuple)
+    else:
+        assert isinstance(ret, types)
+
+    if isinstance(ret, da.Array):
+        ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
         (
             np.apply_along_axis,
             (lambda a: (a[0] + a[-1]) * 0.5, 1, [[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
@@ -556,6 +695,30 @@ def test_functional(backend, method, args, kwargs):
 
     if isinstance(ret, da.Array):
         ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        (np.c_, ([1, 2, 3], [4, 5, 6])),
+        (np.r_, ([1, 2, 3], [4, 5, 6])),
+        (np.s_, (slice(2, None, 2),)),
+    ],
+)
+def test_class_getitem(backend, method, args):
+    backend, types, = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method[args]
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this class.")
+
+    if method is np.s_:
+        all(isinstance(s, slice) for s in ret)
+    else:
+        assert isinstance(ret, types)
 
 
 def test_class_overriding():

@@ -151,6 +151,10 @@ True
 True
 """
 from ._multimethods import *
+from .lib import c_, r_, s_
+from . import linalg
+from . import lib
+from . import random
 
 from ._version import get_versions
 
