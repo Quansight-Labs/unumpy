@@ -852,10 +852,7 @@ def nanquantile(
     return (a, q, mark_non_coercible(out))
 
 
-def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=False):
-    if overwrite_input:
-        return NotImplemented
-
+def _ureduce(a, axis):
     nd = ndim(a)
 
     if axis is None:
@@ -876,33 +873,40 @@ def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=Fals
         a = transpose(a, unselected_axis + axis)
         a = a.reshape(a.shape[: len(unselected_axis)] + (-1,))
 
-    axis = -1
+    return a, dims
+
+
+def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=False):
+    if overwrite_input:
+        return NotImplemented
+
+    a, dims = _ureduce(a, axis)
 
     a = sort(a, axis=-1)
 
-    N = a.shape[axis]
+    N = a.shape[-1]
 
     indexer = [slice(None)] * ndim(a)
     index = N // 2
     if N % 2 == 0:
-        indexer[axis] = slice(index - 1, index + 1)
+        indexer[-1] = slice(index - 1, index + 1)
     else:
-        indexer[axis] = slice(index, index + 1)
+        indexer[-1] = slice(index, index + 1)
     indexer = tuple(indexer)
 
-    a = mean(a[indexer], axis=axis)
+    a = mean(a[indexer], axis=-1)
 
     if keepdims:
         a = a.reshape(dims)
 
     if out is None:
         return a
-    else:
-        if a.shape != out.shape:
-            raise ValueError("out parameter must have the same shape as the output")
 
-        copyto(out, a, casting="unsafe")
-        return out
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
 
 
 @create_numpy(_self_argreplacer, default=_median_default)
@@ -925,50 +929,29 @@ def average(a, axis=None, weights=None, returned=False):
 
 
 def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
-    nd = ndim(a)
-
-    if axis is None:
-        a = ravel(a)
-        dims = (1,) * nd
-    else:
-        if not isinstance(axis, collections.abc.Sequence):
-            axis = (axis,)
-
-        axis = _normalize_axis(nd, axis)
-        unselected_axis = tuple(set(range(nd)) - set(axis))
-
-        dims = list(a.shape)
-        for ax in axis:
-            dims[ax] = 1
-        dims = tuple(dims)
-
-        a = transpose(a, unselected_axis + axis)
-        a = a.reshape(a.shape[: len(unselected_axis)] + (-1,))
-
-    axis = -1
-
-    count = a.shape[axis]
+    a, dims = _ureduce(a, axis)
 
     if dtype is None:
-        if a.dtype.name.startswith("int"):
+        if a.dtype.type == "i":
             dtype = float
         else:
             dtype = a.dtype
 
-    a = sum(a, axis=axis) / count
-    a = a.astype(dtype)
+    N = a.shape[-1]
+
+    a = sum(a, axis=-1, dtype=dtype) / N
 
     if keepdims:
         a = a.reshape(dims)
 
     if out is None:
         return a
-    else:
-        if a.shape != out.shape:
-            raise ValueError("out parameter must have the same shape as the output")
 
-        copyto(out, a, casting="unsafe")
-        return out
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
 
 
 @create_numpy(_self_dtype_argreplacer, default=_mean_default)
