@@ -922,7 +922,37 @@ def _self_weights_argreplacer(args, kwargs, dispatchables):
     return replacer(*args, **kwargs)
 
 
-@create_numpy(_self_weights_argreplacer)
+def _average_default(a, axis=None, weights=None, returned=False):
+    if weights is None:
+        weights = ones(a.shape)
+
+    if a.shape != weights.shape:
+        if axis is None:
+            raise TypeError(
+                "Axis must be specified when shapes of a and weights differ."
+            )
+        if ndim(weights) != 1:
+            raise TypeError("1D weights expected when shapes of a and weights differ.")
+        if weights.shape[0] != a.shape[axis]:
+            raise ValueError("Length of weights not compatible with specified axis.")
+
+        weights = broadcast_to(weights, (1,) * (ndim(a) - 1) + weights.shape)
+        weights = swapaxes(weights, -1, axis)
+        weights = weights * ones(a.shape)
+
+    a, _ = _ureduce(a * weights, axis)
+
+    sum_of_weights = sum(weights, axis=axis)
+
+    a = sum(a, axis=-1) / sum_of_weights
+
+    if returned:
+        return a, sum_of_weights
+    else:
+        return a
+
+
+@create_numpy(_self_weights_argreplacer, default=_average_default)
 @all_of_type(ndarray)
 def average(a, axis=None, weights=None, returned=False):
     return (a, weights)
@@ -960,13 +990,50 @@ def mean(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_argreplacer)
+@create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, axis=None, dtype=None, out=None, ddof=0, keepdims=False: sqrt(
+        var(a, axis=axis, dtype=dtype, out=out, ddof=ddof, keepdims=keepdims)  # type: ignore
+    ),
+)
 @all_of_type(ndarray)
 def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_argreplacer)
+def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    if ddof != 0:
+        return NotImplemented
+
+    a, dims = _ureduce(a, axis)
+
+    if dtype is None:
+        if a.dtype.type == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = a.shape[-1] - ddof
+
+    x = sum(a ** 2, axis=-1, dtype=dtype) / N
+    y = sum(a, axis=-1, dtype=dtype) / N
+
+    a = x - y ** 2
+
+    if keepdims:
+        a = a.reshape(dims)
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_var_default)
 @all_of_type(ndarray)
 def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
@@ -978,19 +1045,82 @@ def nanmedian(a, axis=None, out=None, overwrite_input=False, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_argreplacer)
+def _nanmean_default(a, axis=None, dtype=None, out=None, keepdims=False):
+    a, dims = _ureduce(a, axis)
+
+    if dtype is None:
+        if a.dtype.kind == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = sum(~isnan(a), axis=-1)
+
+    a = nansum(a, axis=-1, dtype=dtype) / N
+
+    if keepdims:
+        a = a.reshape(dims)
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_nanmean_default)
 @all_of_type(ndarray)
 def nanmean(a, axis=None, dtype=None, out=None, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_argreplacer)
+@create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, axis=None, dtype=None, out=None, ddof=0, keepdims=False: sqrt(
+        nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof, keepdims=keepdims)  # type: ignore
+    ),
+)
 @all_of_type(ndarray)
 def nanstd(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_argreplacer)
+def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    if ddof != 0:
+        return NotImplemented
+
+    a, dims = _ureduce(a, axis)
+
+    if dtype is None:
+        if a.dtype.kind == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = sum(~isnan(a), axis=-1) - ddof
+
+    x = nansum(a ** 2, axis=-1, dtype=dtype) / N
+    y = nansum(a, axis=-1, dtype=dtype) / N
+
+    a = x - y ** 2
+
+    if keepdims:
+        a = a.reshape(dims)
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_nanvar_default)
 @all_of_type(ndarray)
 def nanvar(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
