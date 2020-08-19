@@ -885,12 +885,9 @@ def _ureduce(a, axis):
 
 
 def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=False):
-    if overwrite_input:
-        return NotImplemented
-
     a, dims = _ureduce(a, axis)
 
-    mask = any(isnan(a), axis=-1).reshape(a.shape[0:-1] + (1,))
+    mask = any(isnan(a), axis=-1, keepdims=True)
     a = where(mask, nan, a)
 
     a = sort(a, axis=-1)
@@ -935,7 +932,8 @@ def _self_weights_argreplacer(args, kwargs, dispatchables):
 
 def _average_default(a, axis=None, weights=None, returned=False):
     if weights is None:
-        weights = ones(a.shape)
+        avg = mean(a, axis=axis)
+        return avg if not returned else (avg, full(avg.shape, avg.size // a.size))
 
     if a.shape != weights.shape:
         if axis is None:
@@ -951,19 +949,17 @@ def _average_default(a, axis=None, weights=None, returned=False):
         weights = swapaxes(weights, -1, axis)
         weights = weights * ones(a.shape)
 
-    a, _ = _ureduce(a * weights, axis)
-
     sum_of_weights = sum(weights, axis=axis)
 
     if any(sum_of_weights == 0):
         raise ZeroDivisionError("Weights sum to zero, can't be normalized.")
 
-    a = sum(a, axis=-1) / sum_of_weights
+    avg = sum(a * weights, axis=axis) / sum_of_weights
 
     if returned:
-        return a, sum_of_weights
+        return avg, sum_of_weights
     else:
-        return a
+        return avg
 
 
 @create_numpy(_self_weights_argreplacer, default=_average_default)
@@ -973,20 +969,22 @@ def average(a, axis=None, weights=None, returned=False):
 
 
 def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
-    a, dims = _ureduce(a, axis)
-
     if dtype is None:
         if a.dtype.type == "i":
             dtype = float
         else:
             dtype = a.dtype
 
-    N = a.shape[-1]
+    if axis is None:
+        axis = tuple(range(len(a.shape)))
+    if not isinstance(axis, collections.abc.Sequence):
+        axis = (axis,)
 
-    a = sum(a, axis=-1, dtype=dtype) / N
+    N = 0
+    for ax in axis:
+        N += a.shape[ax]
 
-    if keepdims:
-        a = a.reshape(dims)
+    a = sum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
 
     if out is None:
         return a
@@ -1016,23 +1014,25 @@ def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
 
 
 def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    a, dims = _ureduce(a, axis)
-
     if dtype is None:
         if a.dtype.type == "i":
             dtype = float
         else:
             dtype = a.dtype
 
-    N = a.shape[-1]
+    if axis is None:
+        axis = tuple(range(len(a.shape)))
+    if not isinstance(axis, collections.abc.Sequence):
+        axis = (axis,)
 
-    x = sum(a ** 2, axis=-1, dtype=dtype) / N
-    y = sum(a, axis=-1, dtype=dtype) / N
+    N = 0
+    for ax in axis:
+        N += a.shape[ax]
+
+    x = sum(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims) / N
+    y = sum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
 
     a = (x - y ** 2) * (N / (N - ddof))
-
-    if keepdims:
-        a = a.reshape(dims)
 
     if out is None:
         return a
@@ -1057,20 +1057,15 @@ def nanmedian(a, axis=None, out=None, overwrite_input=False, keepdims=False):
 
 
 def _nanmean_default(a, axis=None, dtype=None, out=None, keepdims=False):
-    a, dims = _ureduce(a, axis)
-
     if dtype is None:
         if a.dtype.kind == "i":
             dtype = float
         else:
             dtype = a.dtype
 
-    N = sum(~isnan(a), axis=-1)
+    N = sum(~isnan(a), axis=axis, keepdims=keepdims)
 
-    a = nansum(a, axis=-1, dtype=dtype) / N
-
-    if keepdims:
-        a = a.reshape(dims)
+    a = nansum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
 
     if out is None:
         return a
@@ -1100,23 +1095,18 @@ def nanstd(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
 
 
 def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    a, dims = _ureduce(a, axis)
-
     if dtype is None:
         if a.dtype.kind == "i":
             dtype = float
         else:
             dtype = a.dtype
 
-    N = sum(~isnan(a), axis=-1)
+    N = sum(~isnan(a), axis=axis, keepdims=keepdims)
 
-    x = nansum(a ** 2, axis=-1, dtype=dtype) / N
-    y = nansum(a, axis=-1, dtype=dtype) / N
+    x = nansum(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims) / N
+    y = nansum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
 
     a = (x - y ** 2) * (N / (N - ddof))
-
-    if keepdims:
-        a = a.reshape(dims)
 
     if out is None:
         return a
