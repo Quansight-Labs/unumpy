@@ -25,7 +25,10 @@ try:
         module = cp
         domain_hierarchy = domain.split(".")
         for d in domain_hierarchy[1:]:
-            module = getattr(module, d)
+            if hasattr(module, d):
+                module = getattr(module, d)
+            else:
+                return NotImplemented
         if hasattr(module, name):
             return getattr(module, name)
         else:
@@ -45,10 +48,11 @@ try:
         if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
             return NotImplemented
 
-        if not hasattr(cp, method.__name__):
+        cupy_method = _get_from_name_domain(method.__name__, method.domain)
+        if cupy_method is NotImplemented:
             return NotImplemented
 
-        return getattr(cp, method.__name__)(*args, **kwargs)
+        return cupy_method(*args, **kwargs)
 
     @wrap_single_convertor
     def __ua_convert__(value, dispatch_type, coerce):

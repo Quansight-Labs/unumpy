@@ -106,6 +106,7 @@ class ClassOverrideMetaWithConstructor(ClassOverrideMeta):
         default=lambda self, *a, **kw: self.overridden_class(*a, **kw),
     )
     def __call__(self, *args, **kwargs):
+        self._unwrapped = NotImplemented
         return ()
 
 
@@ -122,6 +123,13 @@ class ClassOverrideMetaWithConstructorAndGetAttr(
     ClassOverrideMetaWithConstructor, ClassOverrideMetaWithGetAttr
 ):
     pass
+
+
+def _call_first_argreplacer(args, kwargs, dispatchables):
+    def replacer(self, a, *args, **kwargs):
+        return (self, dispatchables[0]) + args, kwargs
+
+    return replacer(*args, **kwargs)
 
 
 def _first2argreplacer(args, kwargs, arrays):
@@ -1021,7 +1029,7 @@ def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     x = sum(a ** 2, axis=-1, dtype=dtype) / N
     y = sum(a, axis=-1, dtype=dtype) / N
 
-    a = (x - y ** 2) * N / (N - ddof)
+    a = (x - y ** 2) * (N / (N - ddof))
 
     if keepdims:
         a = a.reshape(dims)
@@ -1105,7 +1113,7 @@ def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
     x = nansum(a ** 2, axis=-1, dtype=dtype) / N
     y = nansum(a, axis=-1, dtype=dtype) / N
 
-    a = (x - y ** 2) * N / (N - ddof)
+    a = (x - y ** 2) * (N / (N - ddof))
 
     if keepdims:
         a = a.reshape(dims)
@@ -1545,16 +1553,319 @@ def where(condition, x=None, y=None):
     return (condition, x, y)
 
 
+def _indices_default(dimensions, dtype=int, sparse=False):
+    shape = (1,) * len(dimensions)
+    grid = []
+    for i, dim in enumerate(dimensions):
+        indices = arange(dim, dtype=dtype).reshape(shape[:i] + (dim,) + shape[i + 1 :])
+        if not sparse:
+            indices = broadcast_to(indices, dimensions)
+
+        grid.append(indices)
+
+    if sparse:
+        return tuple(grid)
+    else:
+        return asarray(grid)
+
+
+@create_numpy(_dtype_argreplacer, default=_indices_default)
+def indices(dimensions, dtype=int, sparse=False):
+    return (mark_dtype(dtype),)
+
+
+def _ix__default(*args):
+    nd = len(args)
+    out = []
+    for i, arg in enumerate(args):
+        if not isinstance(arg, ndarray):
+            arg = asarray(arg)
+
+        if ndim(arg) != 1:
+            raise ValueError("Cross index must be 1 dimensional.")
+
+        if arg.dtype.kind == "b":
+            arg = nonzero(arg)[0]
+
+        shape = tuple(len(arg) if j == i else 1 for j in range(nd))
+        out.append(arg.reshape(shape))
+
+    return tuple(out)
+
+
+@create_numpy(_identity_argreplacer, default=_ix__default)
+def ix_(*args):
+    return ()
+
+
+def _ravel_multi_index_default(multi_index, dims, mode="raise", order="C"):
+    if len(multi_index) != len(dims):
+        raise ValueError(
+            "Parameter multi_index must be a sequence of length %d." % len(dims)
+        )
+
+    if ndim(multi_index) == 1:
+        multi_index = multi_index.reshape((-1, 1))
+
+    if not isinstance(mode, (tuple, list)):
+        mode = (mode,) * multi_index.shape[1]
+    elif len(mode) < multi_index.shape[1]:
+        mode = tuple(itertools.islice(itertools.cycle(mode), multi_index.shape[1]))
+
+    if order == "C":
+        strides = (1,) + dims[:0:-1]
+    elif order == "F":
+        strides = (1,) + dims[:-1]
+    else:
+        raise ValueError("Parameter order not understood.")
+
+    strides = cumprod(strides)
+
+    raveled_indices = []
+    for index, m in zip(transpose(multi_index), mode):
+        if m not in {"raise", "wrap", "clip"}:
+            raise TypeError("Clipmode not understood.")
+
+        if m == "wrap":
+            index = mod(index, dims)
+        elif m == "clip":
+            index = clip(index, 0, [dim - 1 for dim in dims])
+        elif any(index < 0) or any(index >= dims):
+            raise ValueError("Invalid entry in coordinates array.")
+
+        if order == "C":
+            index = index[::-1]
+
+        res = sum(index * strides)
+
+        raveled_indices.append(res)
+
+    if len(raveled_indices) == 1:
+        return raveled_indices[0]
+    else:
+        return asarray(raveled_indices)
+
+
+@create_numpy(_self_argreplacer, default=_ravel_multi_index_default)
+@all_of_type(ndarray)
+def ravel_multi_index(multi_index, dims, mode="raise", order="C"):
+    return (multi_index,)
+
+
+def _unravel_index_default(indices, shape, order="C"):
+    if order == "C":
+        shape = shape[::-1]
+
+    unraveled_coords = []
+    stride = 1
+    for dim in shape:
+        index = (indices // stride) % dim
+        unraveled_coords.append(index)
+        stride *= dim
+
+    if order == "C":
+        return tuple(unraveled_coords[::-1])
+    else:
+        return tuple(unraveled_coords)
+
+
+@create_numpy(_self_argreplacer, default=_unravel_index_default)
+@all_of_type(ndarray)
+def unravel_index(indices, shape, order="C"):
+    return (indices,)
+
+
+@create_numpy(_identity_argreplacer, default=lambda n, ndim=2: (arange(n),) * ndim)
+def diag_indices(n, ndim=2):
+    return ()
+
+
+def _diag_indices_from_default(arr):
+    nd = ndim(arr)
+    if not nd >= 2:
+        raise ValueError("Input array must be at least 2-d.")
+
+    shape = arr.shape
+    dim1 = shape[0]
+    for dim in shape[1:]:
+        if dim != dim1:
+            raise ValueError("All dimensions of input must be of equal length.")
+
+    return diag_indices(dim1, nd)
+
+
+@create_numpy(_self_argreplacer, default=_diag_indices_from_default)
+@all_of_type(ndarray)
+def diag_indices_from(arr):
+    return (arr,)
+
+
+def _mask_indices_default(n, mask_func, k=0):
+    a = ones((n, n))
+    a = mask_func(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_mask_indices_default)
+def mask_indices(n, mask_func, k=0):
+    return ()
+
+
+def _tril_indices_default(n, k=0, m=None):
+    if m is None:
+        m = n
+
+    a = ones((n, m))
+    a = tril(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_tril_indices_default)
+def tril_indices(n, k=0, m=None):
+    return ()
+
+
+def _tril_indices_from_default(arr, k=0):
+    if ndim(arr) != 2:
+        raise ValueError("Input array must be 2-d.")
+
+    shape = arr.shape
+    return tril_indices(shape[0], k, shape[1])
+
+
+@create_numpy(_self_argreplacer, default=_tril_indices_from_default)
+@all_of_type(ndarray)
+def tril_indices_from(arr, k=0):
+    return (arr,)
+
+
+def _triu_indices_default(n, k=0, m=None):
+    if m is None:
+        m = n
+
+    a = ones((n, m))
+    a = triu(a, k=k)
+
+    return nonzero(a)
+
+
+@create_numpy(_identity_argreplacer, default=_triu_indices_default)
+def triu_indices(n, k=0, m=None):
+    return ()
+
+
+def _triu_indices_from_default(arr, k=0):
+    if ndim(arr) != 2:
+        raise ValueError("Input array must be 2-d.")
+
+    shape = arr.shape
+    return triu_indices(shape[0], k, shape[1])
+
+
+@create_numpy(_self_argreplacer, default=_triu_indices_from_default)
+@all_of_type(ndarray)
+def triu_indices_from(arr, k=0):
+    return (arr,)
+
+
 @create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def pad(array, pad_width, mode, **kwargs):
     return (array,)
 
 
-@create_numpy(_self_argreplacer)
+@create_numpy(_first2argreplacer)
 @all_of_type(ndarray)
 def searchsorted(a, v, side="left", sorter=None):
-    return (a,)
+    return (a, v)
+
+
+def _take_default(a, indices, axis=None, out=None, mode="raise"):
+    if axis is None:
+        a = ravel(a)
+        axis = 0
+
+    nd = ndim(a)
+
+    axis = _normalize_axis(nd, axis)
+
+    if mode not in {"raise", "wrap", "clip"}:
+        raise TypeError("Clipmode not understood.")
+
+    if mode == "wrap":
+        indices = mod(indices, a.shape[axis])
+    elif mode == "clip":
+        indices = clip(indices, 0, a.shape[axis] - 1)
+
+    slices = [slice(None)] * nd
+    slices[axis] = indices
+    slices = tuple(slices)
+
+    res = a[slices]
+
+    if out is None:
+        return res
+    else:
+        copyto(out, res)
+
+
+@create_numpy(_first2argreplacer, default=_take_default)
+@all_of_type(ndarray)
+def take(a, indices, axis=None, out=None, mode="raise"):
+    return (a, indices, mark_non_coercible(out))
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def take_along_axis(arr, indices, axis):
+    return (arr, indices)
+
+
+def _choose_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, choices, out=None, mode="raise"):
+        if isinstance(choices, (tuple, list)):
+            return (
+                (dispatchables[0], tuple(dispatchables[1:-1])),
+                dict(out=dispatchables[-1], mode=mode),
+            )
+        else:
+            return dispatchables[:-1], dict(out=dispatchables[-1], mode=mode)
+
+    return replacer(*args, **kwargs)
+
+
+def _choose_default(a, choices, out=None, mode="raise"):
+    if mode == "raise":
+        if any(a < 0) or any(a >= len(choices)):
+            raise ValueError("Invalid entry in choice array.")
+    elif mode == "wrap":
+        a = mod(a, len(choices))
+    elif mode == "clip":
+        a = clip(a, 0, len(choices) - 1)
+    else:
+        raise TypeError("Clipmode not understood.")
+
+    a, *choices = broadcast_arrays(a, *choices)
+
+    merged_array = empty(a.shape, dtype=int)
+    for i, c in enumerate(choices):
+        merged_array = where(a == i, c, merged_array)
+
+    if out is None:
+        return merged_array
+    else:
+        copyto(out, merged_array)
+
+
+@create_numpy(_choose_argreplacer, default=_choose_default)
+@all_of_type(ndarray)
+def choose(a, choices, out=None, mode="raise"):
+    if isinstance(choices, (tuple, list)):
+        return (a, *choices, mark_non_coercible(out))
+    else:
+        return (a, choices, mark_non_coercible(out))
 
 
 @create_numpy(_first2argreplacer)
@@ -2059,6 +2370,173 @@ def array_equiv(a1, a2):
 @all_of_type(ndarray)
 def diag(v, k=0):
     return (v,)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def diagonal(a, offset=0, axis1=0, axis2=1):
+    return (a,)
+
+
+def _select_default(condlist, choicelist, default=0):
+    if len(condlist) != len(choicelist):
+        raise ValueError("List of cases must be same length as list of conditions.")
+
+    if len(condlist) == 0:
+        raise ValueError("select with an empty condition list is not possible")
+
+    condlist = [asarray(cond) for cond in condlist]
+    choicelist = [asarray(choice) for choice in choicelist]
+
+    condlist = broadcast_arrays(*condlist)
+    choicelist = broadcast_arrays(*choicelist)
+
+    out = full(condlist[0].shape, default)
+
+    condlist = condlist[::-1]
+    choicelist = choicelist[::-1]
+    for cond, choice in zip(condlist, choicelist):
+        out = where(cond, choice, out)
+
+    return out
+
+
+@create_numpy(_identity_argreplacer, default=_select_default)
+def select(condlist, choicelist, default=0):
+    return ()
+
+
+def _place_default(arr, mask, vals):
+    if arr.shape != mask.shape:
+        raise ValueError("mask and arr must have the same shape.")
+
+    raveled_mask = ravel(mask)
+
+    n = int(count_nonzero(raveled_mask))
+
+    if len(vals) < n:
+        vals = list(itertools.islice(itertools.cycle(vals), n))
+    elif len(vals) > n:
+        vals = vals[:n]
+
+    temp = empty(raveled_mask.shape, dtype=int)
+
+    indices = nonzero(raveled_mask)[0]
+
+    vals = insert(temp, indices, vals, axis=0)
+    vals = delete(vals, indices + arange(n) + 1)
+
+    copyto(arr, vals.reshape(arr.shape), where=mask)
+
+
+@create_numpy(_first2argreplacer, default=_place_default)
+@all_of_type(ndarray)
+def place(arr, mask, vals):
+    return (arr, mask)
+
+
+def _first3argreplacer(args, kwargs, dispatchables):
+    def replacer(a, b, c, *args, **kwargs):
+        return dispatchables + args, dict(**kwargs)
+
+    return replacer(*args, **kwargs)
+
+
+def _put_default(a, ind, v, mode="raise"):
+    if ndim(ind) == 0:
+        ind = [ind]
+    if ndim(v) == 0:
+        v = [v]
+
+    if len(v) < len(ind):
+        v = list(itertools.islice(itertools.cycle(v), len(ind)))
+    elif len(v) > len(ind):
+        v = v[: len(ind)]
+
+    raveled = ravel(a)
+
+    if mode not in {"raise", "wrap", "clip"}:
+        raise TypeError("Clipmode not understood.")
+
+    if mode == "wrap":
+        ind = mod(ind, len(raveled))
+    elif mode == "clip":
+        ind = clip(ind, 0, len(raveled) - 1)
+
+    raveled = insert(raveled, ind, v, axis=0)
+    raveled = delete(raveled, ind + arange(len(ind)) + 1)
+
+    copyto(a, raveled.reshape(a.shape))
+
+
+@create_numpy(_first3argreplacer, default=_put_default)
+@all_of_type(ndarray)
+def put(a, ind, v, mode="raise"):
+    return (a, ind, v)
+
+
+@create_numpy(_first3argreplacer)
+@all_of_type(ndarray)
+def put_along_axis(arr, indices, values, axis):
+    return (arr, indices, values)
+
+
+def _putmask_default(a, mask, values):
+    if a.shape != mask.shape:
+        raise ValueError("mask and data must have the same shape.")
+
+    if values.shape == a.shape:
+        copyto(a, values.reshape(a.shape), where=mask)
+    else:
+        n = int(prod(a.shape))
+        values = ravel(values)
+
+        if len(values) < n:
+            values = list(itertools.islice(itertools.cycle(values), n))
+            values = asarray(values)
+        elif len(values_raveled) > n:
+            values = values[:n]
+
+        copyto(a, values.reshape(a.shape), where=mask)
+
+
+@create_numpy(_first3argreplacer, default=_putmask_default)
+@all_of_type(ndarray)
+def putmask(a, mask, values):
+    return (a, mask, values)
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def fill_diagonal(a, val, wrap=False):
+    return (a,)
+
+
+class nditer(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
+    pass
+
+
+class ndenumerate(metaclass=ClassOverrideMetaWithConstructor):
+    pass
+
+
+class ndindex(metaclass=ClassOverrideMetaWithConstructor):
+    pass
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nested_iters(
+    op,
+    axes,
+    flags=None,
+    op_flags=None,
+    op_dtypes=None,
+    order="K",
+    casting="safe",
+    buffersize=0,
+):
+    return (op,)
 
 
 @create_numpy(_self_argreplacer, default=lambda v, k=0: diag(ravel(v), k))
@@ -2599,7 +3077,14 @@ def _interp_default(x, xp, fp, left=None, right=None, period=None):
     return result
 
 
-@create_numpy(_self_argreplacer, default=_interp_default)
+def _interp_argreplacer(args, kwargs, dispatchables):
+    def interp(x, xp, fp, left=None, right=None, period=None):
+        return (dispatchables, dict(left=left, right=right, period=period))
+
+    return interp(*args, **kwargs)
+
+
+@create_numpy(_interp_argreplacer, default=_interp_default)
 @all_of_type(ndarray)
 def interp(x, xp, fp, left=None, right=None, period=None):
-    return (x,)
+    return (x, xp, fp)
