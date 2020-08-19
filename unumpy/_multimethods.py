@@ -882,6 +882,9 @@ def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=Fals
 
     a, dims = _ureduce(a, axis)
 
+    mask = any(isnan(a), axis=-1).reshape(a.shape[0:-1] + (1,))
+    a = where(mask, nan, a)
+
     a = sort(a, axis=-1)
 
     N = a.shape[-1]
@@ -944,6 +947,9 @@ def _average_default(a, axis=None, weights=None, returned=False):
 
     sum_of_weights = sum(weights, axis=axis)
 
+    if any(sum_of_weights == 0):
+        raise ZeroDivisionError("Weights sum to zero, can't be normalized.")
+
     a = sum(a, axis=-1) / sum_of_weights
 
     if returned:
@@ -1002,9 +1008,6 @@ def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
 
 
 def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    if ddof != 0:
-        return NotImplemented
-
     a, dims = _ureduce(a, axis)
 
     if dtype is None:
@@ -1013,12 +1016,12 @@ def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
         else:
             dtype = a.dtype
 
-    N = a.shape[-1] - ddof
+    N = a.shape[-1]
 
     x = sum(a ** 2, axis=-1, dtype=dtype) / N
     y = sum(a, axis=-1, dtype=dtype) / N
 
-    a = x - y ** 2
+    a = (x - y ** 2) * N / (N - ddof)
 
     if keepdims:
         a = a.reshape(dims)
@@ -1089,9 +1092,6 @@ def nanstd(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
 
 
 def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    if ddof != 0:
-        return NotImplemented
-
     a, dims = _ureduce(a, axis)
 
     if dtype is None:
@@ -1100,12 +1100,12 @@ def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
         else:
             dtype = a.dtype
 
-    N = sum(~isnan(a), axis=-1) - ddof
+    N = sum(~isnan(a), axis=-1)
 
     x = nansum(a ** 2, axis=-1, dtype=dtype) / N
     y = nansum(a, axis=-1, dtype=dtype) / N
 
-    a = x - y ** 2
+    a = (x - y ** 2) * N / (N - ddof)
 
     if keepdims:
         a = a.reshape(dims)
