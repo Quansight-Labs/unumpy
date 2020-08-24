@@ -7,21 +7,35 @@ create_numpy = functools.partial(create_multimethod, domain="numpy.random")
 
 from .._multimethods import (
     ClassOverrideMetaWithConstructor,
+    ClassOverrideMetaWithGetAttr,
+    ClassOverrideMetaWithConstructorAndGetAttr,
     ndarray,
     _identity_argreplacer,
     _self_argreplacer,
-    _dtype_argreplacer,
     _first2argreplacer,
     _first3argreplacer,
     mark_dtype,
 )
 
 
+@create_numpy(_identity_argreplacer)
+def default_rng(seed=None):
+    return ()
+
+
 class RandomState(metaclass=ClassOverrideMetaWithConstructor):
     pass
 
 
-class Generator(metaclass=ClassOverrideMetaWithConstructor):
+class Generator(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
+    pass
+
+
+class BitGenerator(metaclass=ClassOverrideMetaWithGetAttr):
+    pass
+
+
+class SeedSequence(metaclass=ClassOverrideMetaWithConstructorAndGetAttr):
     pass
 
 
@@ -217,14 +231,7 @@ def logseries(p, size=None):
     return (p,)
 
 
-def _multinomial_argreplacer(args, kwargs, dispatchables):
-    def replacer(n, pvals, size=None):
-        return (n, dispatchables[0]), dict(size=size)
-
-    return replacer(*args, **kwargs)
-
-
-@create_numpy(_multinomial_argreplacer)
+@create_numpy(_identity_argreplacer)
 @all_of_type(ndarray)
 def multinomial(n, pvals, size=None):
     return (pvals,)

@@ -18,7 +18,14 @@ dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
     (
         NumpyBackend,
-        (onp.ndarray, onp.generic, onp.ufunc, onp.random.mtrand.RandomState),
+        (
+            onp.ndarray,
+            onp.generic,
+            onp.ufunc,
+            onp.random.RandomState,
+            onp.random.Generator,
+            onp.random.SeedSequence,
+        ),
     ),
     (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc, da.random.RandomState)),
     (
@@ -583,8 +590,11 @@ def test_linalg(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.random.default_rng, (42,), {}),
         (np.random.RandomState, (42,), {}),
         # (np.random.Generator, (), {}),
+        # (np.random.BitGenerator, (), {}),
+        (np.random.SeedSequence, (42,), {}),
         (np.random.rand, (1, 2), {}),
         (np.random.randn, (1, 2), {}),
         (np.random.randint, ([1, 2],), {}),
