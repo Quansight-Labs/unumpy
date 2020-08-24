@@ -36,7 +36,11 @@ def _dtype_argreplacer(args, kwargs, dispatchables):
 
 def _self_argreplacer(args, kwargs, dispatchables):
     def self_method(a, *args, **kwargs):
-        return dispatchables + args, kwargs
+        kw_out = kwargs.copy()
+        if "out" in kw_out:
+            kw_out["out"] = dispatchables[1]
+
+        return (dispatchables[0],) + args, kw_out
 
     return self_method(*args, **kwargs)
 
@@ -126,20 +130,6 @@ def _call_first_argreplacer(args, kwargs, dispatchables):
         return (self, dispatchables[0]) + args, kwargs
 
     return replacer(*args, **kwargs)
-
-
-def _reduce_argreplacer(args, kwargs, arrays):
-    def reduce(a, axis=None, dtype=None, out=None, keepdims=False):
-        kwargs = {}
-        if dtype is not None:
-            kwargs["dtype"] = dtype
-
-        if keepdims is not False:
-            kwargs["keepdims"] = keepdims
-
-        return ((arrays[0],), dict(axis=axis, out=arrays[1], **kwargs))
-
-    return reduce(*args, **kwargs)
 
 
 def _first2argreplacer(args, kwargs, arrays):
@@ -419,6 +409,9 @@ def _self_dtype_argreplacer(args, kwargs, dispatchables):
         out_kw = kwargs.copy()
         out_kw["dtype"] = dispatchables[1]
 
+        if "out" in out_kw:
+            out_kw["out"] = dispatchables[2]
+
         return (dispatchables[0],) + args, out_kw
 
     return replacer(*args, **kwargs)
@@ -648,58 +641,49 @@ def reduce_impl(red_ufunc: ufunc):
     return inner
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(add))
+@create_numpy(_self_dtype_argreplacer, default=reduce_impl(add))
 @all_of_type(ndarray)
 def sum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(multiply))
+@create_numpy(_self_dtype_argreplacer, default=reduce_impl(multiply))
 @all_of_type(ndarray)
 def prod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(minimum))
+@create_numpy(_self_argreplacer, default=reduce_impl(minimum))
 @all_of_type(ndarray)
 def min(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(maximum))
+@create_numpy(_self_argreplacer, default=reduce_impl(maximum))
 @all_of_type(ndarray)
 def max(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_or))
+@create_numpy(_self_argreplacer, default=reduce_impl(logical_or))
 @all_of_type(ndarray)
 def any(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer, default=reduce_impl(logical_and))
+@create_numpy(_self_argreplacer, default=reduce_impl(logical_and))
 @all_of_type(ndarray)
 def all(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-def _self_out_argreplacer(args, kwargs, dispatchables):
-    def replacer(a, *args, out=None, **kwargs):
-        return (dispatchables[0],) + args, {"out": dispatchables[1], **kwargs}
-
-    return replacer(*args, **kwargs)
-
-
-@create_numpy(_self_out_argreplacer, default=lambda x, out=None: equal(x, inf, out=out))
+@create_numpy(_self_argreplacer, default=lambda x, out=None: equal(x, inf, out=out))
 @all_of_type(ndarray)
 def isposinf(x, out=None):
     return (x, mark_non_coercible(out))
 
 
-@create_numpy(
-    _self_out_argreplacer, default=lambda x, out=None: equal(x, NINF, out=out)
-)
+@create_numpy(_self_argreplacer, default=lambda x, out=None: equal(x, NINF, out=out))
 @all_of_type(ndarray)
 def isneginf(x, out=None):
     return (x, mark_non_coercible(out))
@@ -732,7 +716,7 @@ def isscalar(element):
     return ()
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def argmin(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
@@ -744,7 +728,7 @@ def nanargmin(a, axis=None):
     return (a,)
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def argmax(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
@@ -756,54 +740,50 @@ def nanargmax(a, axis=None):
     return (a,)
 
 
-@create_numpy(_reduce_argreplacer)
+amin = min
+
+
+amax = max
+
+
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def nanmin(a, axis=None, out=None):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def nanmax(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def nansum(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def nanprod(a, axis=None, dtype=None, out=None, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-def _self_dtype_out_argreplacer(args, kwargs, dispatchables):
-    def replacer(a, *args, dtype=None, out=None, **kwargs):
-        return (
-            (dispatchables[0],) + args,
-            dict(dtype=dispatchables[1], out=dispatchables[2], **kwargs),
-        )
-
-    return replacer(*args, **kwargs)
-
-
-@create_numpy(_self_dtype_out_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def cumprod(a, axis=None, dtype=None, out=None):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_self_dtype_out_argreplacer)
+@create_numpy(_self_dtype_argreplacer)
 @all_of_type(ndarray)
 def cumsum(a, axis=None, dtype=None, out=None):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
 @create_numpy(
-    _self_dtype_out_argreplacer,
+    _self_dtype_argreplacer,
     default=lambda a, axis=None, dtype=None, out=None: cumprod(
         where(isnan(a), 1, a), axis=axis, dtype=dtype, out=out  # type: ignore
     ),
@@ -814,7 +794,7 @@ def nancumprod(a, axis=None, dtype=None, out=None):
 
 
 @create_numpy(
-    _self_dtype_out_argreplacer,
+    _self_dtype_argreplacer,
     default=lambda a, axis=None, dtype=None, out=None: cumsum(
         where(isnan(a), 0, a), axis=axis, dtype=dtype, out=out  # type: ignore
     ),
@@ -824,16 +804,422 @@ def nancumsum(a, axis=None, dtype=None, out=None):
     return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def percentile(
+    a,
+    q,
+    axis=None,
+    out=None,
+    overwrite_input=False,
+    interpolation="linear",
+    keepdims=False,
+):
+    return (a, q, mark_non_coercible(out))
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def nanpercentile(
+    a,
+    q,
+    axis=None,
+    out=None,
+    overwrite_input=False,
+    interpolation="linear",
+    keepdims=False,
+):
+    return (a, q, mark_non_coercible(out))
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def quantile(
+    a,
+    q,
+    axis=None,
+    out=None,
+    overwrite_input=False,
+    interpolation="linear",
+    keepdims=False,
+):
+    return (a, q, mark_non_coercible(out))
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def nanquantile(
+    a,
+    q,
+    axis=None,
+    out=None,
+    overwrite_input=False,
+    interpolation="linear",
+    keepdims=False,
+):
+    return (a, q, mark_non_coercible(out))
+
+
+def _ureduce(a, axis):
+    nd = ndim(a)
+
+    if axis is None:
+        a = ravel(a)
+        dims = (1,) * nd
+    else:
+        if not isinstance(axis, collections.abc.Sequence):
+            axis = (axis,)
+
+        axis = _normalize_axis(nd, axis)
+        unselected_axis = tuple(set(range(nd)) - set(axis))
+
+        dims = list(a.shape)
+        for ax in axis:
+            dims[ax] = 1
+        dims = tuple(dims)
+
+        a = transpose(a, unselected_axis + axis)
+        a = a.reshape(a.shape[: len(unselected_axis)] + (-1,))
+
+    return a, dims
+
+
+def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=False):
+    a, dims = _ureduce(a, axis)
+
+    mask = any(isnan(a), axis=-1, keepdims=True)
+    a = where(mask, nan, a)
+
+    N = a.shape[-1]
+
+    indexer = [slice(None)] * ndim(a)
+    index = N // 2
+    if N % 2 == 0:
+        a = partition(a, [index - 1, index])
+        indexer[-1] = slice(index - 1, index + 1)
+    else:
+        a = partition(a, index)
+        indexer[-1] = slice(index, index + 1)
+    indexer = tuple(indexer)
+
+    a = mean(a[indexer], axis=-1)
+
+    if keepdims:
+        a = a.reshape(dims)
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_argreplacer, default=_median_default)
+@all_of_type(ndarray)
+def median(a, axis=None, out=None, overwrite_input=False, keepdims=False):
+    return (a, mark_non_coercible(out))
+
+
+def _self_weights_argreplacer(args, kwargs, dispatchables):
+    def replacer(*args, weights=None, **kwargs):
+        return dispatchables[0:-1], dict(weights=dispatchables[-1], **kwargs)
+
+    return replacer(*args, **kwargs)
+
+
+def _average_default(a, axis=None, weights=None, returned=False):
+    if weights is None:
+        avg = mean(a, axis=axis)
+        return avg if not returned else (avg, full(avg.shape, avg.size // a.size))
+
+    if a.shape != weights.shape:
+        if axis is None:
+            raise TypeError(
+                "Axis must be specified when shapes of a and weights differ."
+            )
+        if ndim(weights) != 1:
+            raise TypeError("1D weights expected when shapes of a and weights differ.")
+        if weights.shape[0] != a.shape[axis]:
+            raise ValueError("Length of weights not compatible with specified axis.")
+
+        weights = broadcast_to(weights, (1,) * (ndim(a) - 1) + weights.shape)
+        weights = swapaxes(weights, -1, axis)
+        weights = weights * ones(a.shape)
+
+    sum_of_weights = sum(weights, axis=axis)
+
+    if any(sum_of_weights == 0):
+        raise ZeroDivisionError("Weights sum to zero, can't be normalized.")
+
+    avg = sum(a * weights, axis=axis) / sum_of_weights
+
+    if returned:
+        return avg, sum_of_weights
+    else:
+        return avg
+
+
+@create_numpy(_self_weights_argreplacer, default=_average_default)
+@all_of_type(ndarray)
+def average(a, axis=None, weights=None, returned=False):
+    return (a, weights)
+
+
+def _axis_size(axis, shape):
+    if axis is None:
+        axis = tuple(range(len(shape)))
+    if not isinstance(axis, collections.abc.Sequence):
+        axis = (axis,)
+
+    size = 1
+    for ax in axis:
+        size *= shape[ax]
+
+    return size
+
+
+def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
+    if dtype is None:
+        if a.dtype.type == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = _axis_size(axis, a.shape)
+
+    a = sum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_mean_default)
+@all_of_type(ndarray)
+def mean(a, axis=None, dtype=None, out=None, keepdims=False):
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
+
+
+@create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, axis=None, dtype=None, out=None, ddof=0, keepdims=False: sqrt(
+        var(a, axis=axis, dtype=dtype, out=out, ddof=ddof, keepdims=keepdims)  # type: ignore
+    ),
+)
 @all_of_type(ndarray)
 def std(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
-    return (a, mark_non_coercible(out))
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
 
 
-@create_numpy(_reduce_argreplacer)
+def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    if dtype is None:
+        if a.dtype.type == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = _axis_size(axis, a.shape)
+
+    x = mean(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims)
+    y = mean(a, axis=axis, dtype=dtype, keepdims=keepdims)
+
+    a = (x - y ** 2) * (N / (N - ddof))
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_var_default)
 @all_of_type(ndarray)
 def var(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
+
+
+@create_numpy(_self_argreplacer)
+@all_of_type(ndarray)
+def nanmedian(a, axis=None, out=None, overwrite_input=False, keepdims=False):
     return (a, mark_non_coercible(out))
+
+
+def _nanmean_default(a, axis=None, dtype=None, out=None, keepdims=False):
+    if dtype is None:
+        if a.dtype.kind == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = sum(~isnan(a), axis=axis, keepdims=keepdims)
+
+    a = nansum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_nanmean_default)
+@all_of_type(ndarray)
+def nanmean(a, axis=None, dtype=None, out=None, keepdims=False):
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
+
+
+@create_numpy(
+    _self_dtype_argreplacer,
+    default=lambda a, axis=None, dtype=None, out=None, ddof=0, keepdims=False: sqrt(
+        nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof, keepdims=keepdims)  # type: ignore
+    ),
+)
+@all_of_type(ndarray)
+def nanstd(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
+
+
+def _nanvar_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    if dtype is None:
+        if a.dtype.kind == "i":
+            dtype = float
+        else:
+            dtype = a.dtype
+
+    N = sum(~isnan(a), axis=axis, keepdims=keepdims)
+
+    x = nansum(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims) / N
+    y = nansum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
+
+    a = (x - y ** 2) * (N / (N - ddof))
+
+    if out is None:
+        return a
+
+    if a.shape != out.shape:
+        raise ValueError("out parameter must have the same shape as the output")
+
+    copyto(out, a, casting="unsafe")
+    return out
+
+
+@create_numpy(_self_dtype_argreplacer, default=_nanvar_default)
+@all_of_type(ndarray)
+def nanvar(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+    return (a, mark_dtype(dtype), mark_non_coercible(out))
+
+
+def _corrcoef_argreplacer(args, kwargs, dispatchables):
+    def replacer(x, y=None, rowvar=True, bias=None, ddof=None):
+        return (
+            (dispatchables[0],),
+            dict(y=dispatchables[1], rowvar=rowvar, bias=bias, ddof=ddof),
+        )
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_corrcoef_argreplacer)
+@all_of_type(ndarray)
+def corrcoef(x, y=None, rowvar=True, bias=None, ddof=None):
+    return (x, y)
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def correlate(a, v, mode="valid"):
+    return (a, v)
+
+
+def _cov_argreplacer(args, kwargs, dispatchables):
+    def replacer(
+        m, y=None, rowvar=True, bias=False, ddof=None, fweights=None, aweights=None
+    ):
+        return (
+            (dispatchables[0],),
+            dict(
+                y=dispatchables[1],
+                rowvar=rowvar,
+                bias=bias,
+                ddof=ddof,
+                fweights=dispatchables[2],
+                aweights=dispatchables[3],
+            ),
+        )
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_cov_argreplacer)
+@all_of_type(ndarray)
+def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None, aweights=None):
+    return (m, y, fweights, aweights)
+
+
+def _histogram_argreplacer(args, kwargs, dispatchables):
+    def replacer(a, bins=10, range=None, normed=None, weights=None, density=None):
+        return (
+            (dispatchables[0],),
+            dict(
+                bins=dispatchables[1],
+                range=range,
+                normed=normed,
+                weights=dispatchables[2],
+                density=density,
+            ),
+        )
+
+    return replacer(*args, **kwargs)
+
+
+@create_numpy(_histogram_argreplacer)
+@all_of_type(ndarray)
+def histogram(a, bins=10, range=None, normed=None, weights=None, density=None):
+    return (a, bins, weights)
+
+
+@create_numpy(_self_weights_argreplacer)
+@all_of_type(ndarray)
+def histogram2d(x, y, bins=10, range=None, normed=None, weights=None, density=None):
+    return (x, y, weights)
+
+
+@create_numpy(_self_weights_argreplacer)
+@all_of_type(ndarray)
+def histogramdd(sample, bins=10, range=None, normed=None, weights=None, density=None):
+    return (sample, weights)
+
+
+@create_numpy(_self_weights_argreplacer)
+@all_of_type(ndarray)
+def bincount(x, weights=None, minlength=0):
+    return (x, weights)
+
+
+@create_numpy(_self_weights_argreplacer)
+@all_of_type(ndarray)
+def histogram_bin_edges(a, bins=10, range=None, weights=None):
+    return (a, weights)
+
+
+@create_numpy(_first2argreplacer)
+@all_of_type(ndarray)
+def digitize(x, bins, right=False):
+    return (x, bins)
 
 
 def _ptp_default(a, axis=None, out=None, keepdims=False):
@@ -842,7 +1228,7 @@ def _ptp_default(a, axis=None, out=None, keepdims=False):
     return result
 
 
-@create_numpy(_reduce_argreplacer, default=_ptp_default)
+@create_numpy(_self_argreplacer, default=_ptp_default)
 @all_of_type(ndarray)
 def ptp(a, axis=None, out=None, keepdims=False):
     return (a, mark_non_coercible(out))
@@ -909,7 +1295,7 @@ def union1d(ar1, ar2):
 
 @create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
-def sort(a, axis=None, kind=None, order=None):
+def sort(a, axis=-1, kind=None, order=None):
     return (a,)
 
 
@@ -2440,7 +2826,7 @@ def _apply_over_axes_default(func, a, axes):
 
     res = a
     for axis in axes:
-        res = func(res, axis)
+        res = func(res, axis=axis)
 
         res_nd = ndim(res)
         if res_nd < nd - 1:
@@ -2538,7 +2924,7 @@ def unwrap(p, discont=3.141592653589793, axis=-1):
     return (p,)
 
 
-@create_numpy(_self_out_argreplacer)
+@create_numpy(_self_argreplacer)
 @all_of_type(ndarray)
 def around(a, decimals=0, out=None):
     return (a, mark_non_coercible(out))
@@ -2547,7 +2933,7 @@ def around(a, decimals=0, out=None):
 round_ = around
 
 
-@create_numpy(_self_out_argreplacer, default=lambda x, out=None: trunc(x, out=out))
+@create_numpy(_self_argreplacer, default=lambda x, out=None: trunc(x, out=out))
 @all_of_type(ndarray)
 def fix(x, out=None):
     return (x, mark_non_coercible(out))

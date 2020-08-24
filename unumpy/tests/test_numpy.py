@@ -120,6 +120,8 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.argmax, ([1, 3, 2],), {}),
         (np.nanargmin, ([1, 3, 2],), {}),
         (np.nanargmax, ([1, 3, 2],), {}),
+        (np.amin, ([1, 3, 2],), {}),
+        (np.amax, ([1, 3, 2],), {}),
         (np.nanmin, ([1, 3, 2],), {}),
         (np.nanmax, ([1, 3, 2],), {}),
         (np.ptp, ([1, 3, 2],), {}),
@@ -230,6 +232,15 @@ def replace_args_kwargs(method, backend, args, kwargs):
         (np.ndenumerate, ([[1, 2], [3, 4]],), {}),
         (np.ndindex, (3, 2, 1), {}),
         (np.lib.Arrayterator, ([[1, 2], [3, 4]],), {}),
+        (np.median, ([[10, 7, 4], [3, 2, 1]],), {"axis": 0}),
+        (np.average, ([1, 2, 3, 4],), {}),
+        (np.nanmedian, ([[10.0, np.nan, 4], [3, 2, 1]],), {"axis": 0}),
+        (np.corrcoef, ([1, 2, 3, 4],), {}),
+        (np.correlate, ([1, 2, 3], [0, 1, 0.5]), {}),
+        (np.cov, ([[0, 1, 2], [2, 1, 0]],), {}),
+        (np.bincount, ([1, 2, 3, 4, 5],), {}),
+        (np.histogram_bin_edges, ([1, 2, 3, 4, 5],), {"bins": "auto"}),
+        (np.digitize, ([0.2, 6.4, 3.0, 1.6], [0.0, 1.0, 2.5, 4.0, 10.0]), {}),
     ],
 )
 def test_functions_coerce(backend, method, args, kwargs):
@@ -313,8 +324,12 @@ def test_copyto(backend):
     [
         (np.prod, ([1],), {}),
         (np.sum, ([1],), {}),
+        (np.mean, ([[1, 2], [3, 4]],), {}),
         (np.std, ([1, 3, 2],), {}),
         (np.var, ([1, 3, 2],), {}),
+        (np.nanmean, ([[1, np.nan], [3, 4]],), {}),
+        (np.nanstd, ([[1, np.nan], [3, 4]],), {}),
+        (np.nanvar, ([[1, np.nan], [3, 4]],), {}),
     ],
 )
 def test_functions_coerce_with_dtype(backend, method, args, kwargs):
@@ -361,6 +376,9 @@ def test_functions_coerce_with_dtype(backend, method, args, kwargs):
         (np.triu_indices, (4,), {}),
         (np.triu_indices_from, ([[1, 2], [3, 4]],), {}),
         (np.nested_iters, ([[0, 1], [2, 3]], [[0], [1]]), {}),
+        (np.histogram, ([1, 2, 1],), {"bins": [0, 1, 2, 3]}),
+        (np.histogram2d, ([1, 2], [1, 2]), {"bins": 2}),
+        (np.histogramdd, ([[1, 2], [1, 2]],), {"bins": 2}),
     ],
 )
 def test_multiple_output(backend, method, args, kwargs):
@@ -388,8 +406,13 @@ def test_multiple_output(backend, method, args, kwargs):
         if backend is CupyBackend and method is np.unravel_index:
             pytest.xfail(reason="cupy.unravel_index is broken in version 6.0")
         raise
+
     if method is np.nested_iters:
         assert all(isinstance(ite, collections.abc.Iterator) for ite in ret)
+    elif (isinstance(backend, DaskBackend) and method is np.histogram) or (
+        backend is NumpyBackend and method is np.histogramdd
+    ):
+        assert all(isinstance(arr, types + (list,)) for arr in ret)
     else:
         assert all(isinstance(arr, types) for arr in ret)
 
