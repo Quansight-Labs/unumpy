@@ -890,15 +890,15 @@ def _median_default(a, axis=None, out=None, overwrite_input=False, keepdims=Fals
     mask = any(isnan(a), axis=-1, keepdims=True)
     a = where(mask, nan, a)
 
-    a = sort(a, axis=-1)
-
     N = a.shape[-1]
 
     indexer = [slice(None)] * ndim(a)
     index = N // 2
     if N % 2 == 0:
+        a = partition(a, [index - 1, index])
         indexer[-1] = slice(index - 1, index + 1)
     else:
+        a = partition(a, index)
         indexer[-1] = slice(index, index + 1)
     indexer = tuple(indexer)
 
@@ -968,6 +968,19 @@ def average(a, axis=None, weights=None, returned=False):
     return (a, weights)
 
 
+def _axis_size(axis, shape):
+    if axis is None:
+        axis = tuple(range(len(shape)))
+    if not isinstance(axis, collections.abc.Sequence):
+        axis = (axis,)
+
+    size = 1
+    for ax in axis:
+        size *= shape[ax]
+
+    return size
+
+
 def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
     if dtype is None:
         if a.dtype.type == "i":
@@ -975,14 +988,7 @@ def _mean_default(a, axis=None, dtype=None, out=None, keepdims=False):
         else:
             dtype = a.dtype
 
-    if axis is None:
-        axis = tuple(range(len(a.shape)))
-    if not isinstance(axis, collections.abc.Sequence):
-        axis = (axis,)
-
-    N = 0
-    for ax in axis:
-        N += a.shape[ax]
+    N = _axis_size(axis, a.shape)
 
     a = sum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
 
@@ -1020,17 +1026,10 @@ def _var_default(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
         else:
             dtype = a.dtype
 
-    if axis is None:
-        axis = tuple(range(len(a.shape)))
-    if not isinstance(axis, collections.abc.Sequence):
-        axis = (axis,)
+    N = _axis_size(axis, a.shape)
 
-    N = 0
-    for ax in axis:
-        N += a.shape[ax]
-
-    x = sum(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims) / N
-    y = sum(a, axis=axis, dtype=dtype, keepdims=keepdims) / N
+    x = mean(a ** 2, axis=axis, dtype=dtype, keepdims=keepdims)
+    y = mean(a, axis=axis, dtype=dtype, keepdims=keepdims)
 
     a = (x - y ** 2) * (N / (N - ddof))
 
