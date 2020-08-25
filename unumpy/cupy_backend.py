@@ -23,14 +23,15 @@ try:
 
     def _get_from_name_domain(name, domain):
         module = cp
-        domain_hierarchy = domain.split(".")
+        name_hierarchy = name.split(".")
+        domain_hierarchy = domain.split(".") + name_hierarchy[0:-1]
         for d in domain_hierarchy[1:]:
             if hasattr(module, d):
                 module = getattr(module, d)
             else:
                 return NotImplemented
-        if hasattr(module, name):
-            return getattr(module, name)
+        if hasattr(module, name_hierarchy[-1]):
+            return getattr(module, name_hierarchy[-1])
         else:
             return NotImplemented
 
@@ -48,7 +49,7 @@ try:
         if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
             return NotImplemented
 
-        cupy_method = _get_from_name_domain(method.__name__, method.domain)
+        cupy_method = _get_from_name_domain(method.__qualname__, method.domain)
         if cupy_method is NotImplemented:
             return NotImplemented
 

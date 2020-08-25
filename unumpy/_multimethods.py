@@ -29,6 +29,9 @@ def _dtype_argreplacer(args, kwargs, dispatchables):
     def replacer(*a, dtype=None, **kw):
         out_kw = kw.copy()
         out_kw["dtype"] = dispatchables[0]
+        if "out" in out_kw:
+            out_kw["out"] = dispatchables[1]
+
         return a, out_kw
 
     return replacer(*args, **kwargs)
@@ -39,6 +42,13 @@ def _self_argreplacer(args, kwargs, dispatchables):
         return dispatchables + args, kwargs
 
     return self_method(*args, **kwargs)
+
+
+def _skip_self_argreplacer(args, kwargs, dispatchables):
+    def replacer(self, *args, **kwargs):
+        return (self,) + dispatchables, kwargs
+
+    return replacer(*args, **kwargs)
 
 
 def _ureduce_argreplacer(args, kwargs, dispatchables):

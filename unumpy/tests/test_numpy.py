@@ -609,7 +609,7 @@ def test_linalg(backend, method, args, kwargs):
         (np.random.permutation, ([1, 2, 3, 4],), {}),
         (np.random.beta, (1, 2), {"size": 2}),
         (np.random.binomial, (10, 0.5), {"size": 2}),
-        (np.random.chisquare, (2, 4), {}),
+        (np.random.chisquare, (2,), {"size": 2}),
         (np.random.dirichlet, ((10, 5, 3),), {}),
         (np.random.exponential, (), {"size": 2}),
         (np.random.f, (1.0, 48.0), {"size": 2}),
@@ -663,6 +663,73 @@ def test_random(backend, method, args, kwargs):
         assert ret is None
     elif method is np.random.get_state:
         assert isinstance(ret, tuple)
+    else:
+        assert isinstance(ret, types)
+
+    if isinstance(ret, da.Array):
+        ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
+        (np.random.Generator.random, (), {"size": 2}),
+        (np.random.Generator.choice, ([1, 2],), {}),
+        (np.random.Generator.bytes, (10,), {}),
+        (np.random.Generator.shuffle, ([1, 2, 3, 4],), {}),
+        (np.random.Generator.permutation, ([1, 2, 3, 4],), {}),
+        (np.random.Generator.beta, (1, 2), {"size": 2}),
+        (np.random.Generator.binomial, (10, 0.5), {"size": 2}),
+        (np.random.Generator.chisquare, (2,), {"size": 2}),
+        (np.random.Generator.dirichlet, ((10, 5, 3),), {}),
+        (np.random.Generator.exponential, (), {"size": 2}),
+        (np.random.Generator.f, (1.0, 48.0), {"size": 2}),
+        (np.random.Generator.gamma, (2.0, 2.0), {"size": 2}),
+        (np.random.Generator.geometric, (0.35,), {"size": 2}),
+        (np.random.Generator.gumbel, (0.0, 0.1), {"size": 2}),
+        (np.random.Generator.hypergeometric, (100, 2, 10), {"size": 2}),
+        (np.random.Generator.laplace, (0.0, 1.0), {"size": 2}),
+        (np.random.Generator.logistic, (10, 1), {"size": 2}),
+        (np.random.Generator.lognormal, (3.0, 1.0), {"size": 2}),
+        (np.random.Generator.logseries, (0.6,), {"size": 2}),
+        (np.random.Generator.multinomial, (20, [1 / 6.0] * 6), {}),
+        (np.random.Generator.multivariate_normal, ([0, 0], [[1, 0], [0, 100]]), {}),
+        (np.random.Generator.negative_binomial, (1, 0.1), {"size": 2}),
+        (np.random.Generator.noncentral_chisquare, (3, 20), {"size": 2}),
+        (np.random.Generator.noncentral_f, (3, 20, 3.0), {"size": 2}),
+        (np.random.Generator.normal, (0, 0.1), {"size": 2}),
+        (np.random.Generator.pareto, (3.0,), {"size": 2}),
+        (np.random.Generator.poisson, (5,), {"size": 2}),
+        (np.random.Generator.power, (5.0,), {"size": 2}),
+        (np.random.Generator.rayleigh, (3,), {"size": 2}),
+        (np.random.Generator.standard_cauchy, (), {"size": 2}),
+        (np.random.Generator.standard_exponential, (), {"size": 2}),
+        (np.random.Generator.standard_gamma, (2.0,), {"size": 2}),
+        (np.random.Generator.standard_normal, (), {"size": 2}),
+        (np.random.Generator.standard_t, (10,), {"size": 2}),
+        (np.random.Generator.triangular, (-3, 0, 8), {"size": 2}),
+        (np.random.Generator.uniform, (-1, 0), {"size": 2}),
+        (np.random.Generator.vonmises, (0.0, 4.0), {"size": 2}),
+        (np.random.Generator.wald, (3, 2), {"size": 2}),
+        (np.random.Generator.weibull, (5.0,), {"size": 2}),
+        (np.random.Generator.zipf, (2.0,), {"size": 2}),
+    ],
+)
+def test_Generator(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            rng = np.random.default_rng()
+            ret = method(rng, *args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if method is np.random.Generator.bytes:
+        assert isinstance(ret, bytes)
+    elif method is np.random.Generator.shuffle:
+        assert ret is None
     else:
         assert isinstance(ret, types)
 
