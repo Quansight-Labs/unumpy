@@ -2,7 +2,7 @@ import numpy as np
 import sparse
 from uarray import Dispatchable, wrap_single_convertor
 from unumpy import ufunc, ufunc_list, ndarray, dtype
-from unumpy.random import RandomState
+from unumpy.random import RandomState, Generator
 import unumpy
 import functools
 
@@ -28,7 +28,8 @@ _class_mapping = {
     ndarray: sparse.SparseArray,
     dtype: np.dtype,
     ufunc: np.ufunc,
-    RandomState: np.random.mtrand.RandomState,
+    RandomState: np.random.RandomState,
+    Generator: np.random.Generator,
 }
 
 

@@ -804,21 +804,31 @@ def test_class_overriding():
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(onp.random.RandomState(), np.random.RandomState)
+        assert isinstance(onp.random.Generator(onp.random.PCG64()), np.random.Generator)
         assert issubclass(onp.ufunc, np.ufunc)
+        assert issubclass(onp.random.RandomState, np.random.RandomState)
+        assert issubclass(onp.random.Generator, np.random.Generator)
 
     with ua.set_backend(DaskBackend(), coerce=True):
         assert isinstance(da.add, np.ufunc)
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(da.random.RandomState(), np.random.RandomState)
         assert issubclass(da.ufunc.ufunc, np.ufunc)
+        assert issubclass(da.random.RandomState, np.random.RandomState)
 
     with ua.set_backend(SparseBackend, coerce=True):
         assert isinstance(onp.add, np.ufunc)
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(onp.random.RandomState(), np.random.RandomState)
+        assert isinstance(onp.random.Generator(onp.random.PCG64()), np.random.Generator)
         assert issubclass(onp.ufunc, np.ufunc)
+        assert issubclass(onp.random.RandomState, np.random.RandomState)
+        assert issubclass(onp.random.Generator, np.random.Generator)
 
     if hasattr(CupyBackend, "__ua_function__"):
         with ua.set_backend(CupyBackend, coerce=True):
@@ -826,4 +836,6 @@ def test_class_overriding():
             assert isinstance(cp.dtype("float64"), np.dtype)
             assert np.dtype("float64") == cp.float64
             assert isinstance(np.dtype("float64"), cp.dtype)
+            assert isinstance(cp.random.RandomState(), np.random.RandomState)
             assert issubclass(cp.ufunc, np.ufunc)
+            assert issubclass(cp.random.RandomState, np.random.RandomState)
