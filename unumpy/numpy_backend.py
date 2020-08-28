@@ -1,6 +1,6 @@
 import numpy as np
 from uarray import Dispatchable, wrap_single_convertor
-from unumpy import ufunc, ufunc_list, ndarray, dtype, linalg
+from unumpy import ufunc, ufunc_list, ndarray, dtype
 import unumpy
 import functools
 
@@ -29,11 +29,12 @@ _implementations: Dict = {
 
 def _get_from_name_domain(name, domain):
     module = np
-    domain_hierarchy = domain.split(".")
+    name_hierarchy = name.split(".")
+    domain_hierarchy = domain.split(".") + name_hierarchy[0:-1]
     for d in domain_hierarchy[1:]:
         module = getattr(module, d)
-    if hasattr(module, name):
-        return getattr(module, name)
+    if hasattr(module, name_hierarchy[-1]):
+        return getattr(module, name_hierarchy[-1])
     else:
         return NotImplemented
 
@@ -45,7 +46,7 @@ def __ua_function__(method, args, kwargs):
     if len(args) != 0 and isinstance(args[0], unumpy.ClassOverrideMeta):
         return NotImplemented
 
-    method_numpy = _get_from_name_domain(method.__name__, method.domain)
+    method_numpy = _get_from_name_domain(method.__qualname__, method.domain)
     if method_numpy is NotImplemented:
         return NotImplemented
 

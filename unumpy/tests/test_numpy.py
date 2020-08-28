@@ -16,9 +16,22 @@ ua.set_global_backend(NumpyBackend)
 
 dtypes = ["int8", "int16", "int32", "float32", "float64"]
 LIST_BACKENDS = [
-    (NumpyBackend, (onp.ndarray, onp.generic, onp.ufunc)),
-    (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc)),
-    (SparseBackend, (sparse.SparseArray, onp.ndarray, onp.generic)),
+    (
+        NumpyBackend,
+        (
+            onp.ndarray,
+            onp.generic,
+            onp.ufunc,
+            onp.random.RandomState,
+            onp.random.Generator,
+            onp.random.SeedSequence,
+        ),
+    ),
+    (DaskBackend(), (da.Array, onp.generic, da.ufunc.ufunc, da.random.RandomState)),
+    (
+        SparseBackend,
+        (sparse.SparseArray, onp.ndarray, onp.generic, onp.random.mtrand.RandomState),
+    ),
     pytest.param(
         (TorchBackend, (torch.Tensor,)),
         marks=pytest.mark.xfail(reason="PyTorch not fully NumPy compatible."),
@@ -600,6 +613,156 @@ def test_linalg(backend, method, args, kwargs):
 @pytest.mark.parametrize(
     "method, args, kwargs",
     [
+        (np.random.default_rng, (42,), {}),
+        (np.random.RandomState, (42,), {}),
+        # (np.random.Generator, (), {}),
+        # (np.random.BitGenerator, (), {}),
+        (np.random.SeedSequence, (42,), {}),
+        (np.random.rand, (1, 2), {}),
+        (np.random.randn, (1, 2), {}),
+        (np.random.randint, ([1, 2],), {}),
+        (np.random.random_integers, (2,), {}),
+        (np.random.random_sample, (), {"size": 2}),
+        (np.random.random, (), {"size": 2}),
+        (np.random.ranf, (), {"size": 2}),
+        (np.random.sample, (), {"size": 2}),
+        (np.random.choice, ([1, 2],), {}),
+        (np.random.bytes, (10,), {}),
+        (np.random.shuffle, ([1, 2, 3, 4],), {}),
+        (np.random.permutation, ([1, 2, 3, 4],), {}),
+        (np.random.beta, (1, 2), {"size": 2}),
+        (np.random.binomial, (10, 0.5), {"size": 2}),
+        (np.random.chisquare, (2,), {"size": 2}),
+        (np.random.dirichlet, ((10, 5, 3),), {}),
+        (np.random.exponential, (), {"size": 2}),
+        (np.random.f, (1.0, 48.0), {"size": 2}),
+        (np.random.gamma, (2.0, 2.0), {"size": 2}),
+        (np.random.geometric, (0.35,), {"size": 2}),
+        (np.random.gumbel, (0.0, 0.1), {"size": 2}),
+        (np.random.hypergeometric, (100, 2, 10), {"size": 2}),
+        (np.random.laplace, (0.0, 1.0), {"size": 2}),
+        (np.random.logistic, (10, 1), {"size": 2}),
+        (np.random.lognormal, (3.0, 1.0), {"size": 2}),
+        (np.random.logseries, (0.6,), {"size": 2}),
+        (np.random.multinomial, (20, [1 / 6.0] * 6), {}),
+        (np.random.multivariate_normal, ([0, 0], [[1, 0], [0, 100]]), {}),
+        (np.random.negative_binomial, (1, 0.1), {"size": 2}),
+        (np.random.noncentral_chisquare, (3, 20), {"size": 2}),
+        (np.random.noncentral_f, (3, 20, 3.0), {"size": 2}),
+        (np.random.normal, (0, 0.1), {"size": 2}),
+        (np.random.pareto, (3.0,), {"size": 2}),
+        (np.random.poisson, (5,), {"size": 2}),
+        (np.random.power, (5.0,), {"size": 2}),
+        (np.random.rayleigh, (3,), {"size": 2}),
+        (np.random.standard_cauchy, (), {"size": 2}),
+        (np.random.standard_exponential, (), {"size": 2}),
+        (np.random.standard_gamma, (2.0,), {"size": 2}),
+        (np.random.standard_normal, (), {"size": 2}),
+        (np.random.standard_t, (10,), {"size": 2}),
+        (np.random.triangular, (-3, 0, 8), {"size": 2}),
+        (np.random.uniform, (-1, 0), {"size": 2}),
+        (np.random.vonmises, (0.0, 4.0), {"size": 2}),
+        (np.random.wald, (3, 2), {"size": 2}),
+        (np.random.weibull, (5.0,), {"size": 2}),
+        (np.random.zipf, (2.0,), {"size": 2}),
+        (np.random.seed, (), {}),
+        (np.random.get_state, (), {}),
+        # (np.random.set_state, (), {}),
+    ],
+)
+def test_random(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            ret = method(*args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if method is np.random.bytes:
+        assert isinstance(ret, bytes)
+    elif method in {np.random.shuffle, np.random.seed}:
+        assert ret is None
+    elif method is np.random.get_state:
+        assert isinstance(ret, tuple)
+    else:
+        assert isinstance(ret, types)
+
+    if isinstance(ret, da.Array):
+        ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
+        (np.random.Generator.random, (), {"size": 2}),
+        (np.random.Generator.choice, ([1, 2],), {}),
+        (np.random.Generator.bytes, (10,), {}),
+        (np.random.Generator.shuffle, ([1, 2, 3, 4],), {}),
+        (np.random.Generator.permutation, ([1, 2, 3, 4],), {}),
+        (np.random.Generator.beta, (1, 2), {"size": 2}),
+        (np.random.Generator.binomial, (10, 0.5), {"size": 2}),
+        (np.random.Generator.chisquare, (2,), {"size": 2}),
+        (np.random.Generator.dirichlet, ((10, 5, 3),), {}),
+        (np.random.Generator.exponential, (), {"size": 2}),
+        (np.random.Generator.f, (1.0, 48.0), {"size": 2}),
+        (np.random.Generator.gamma, (2.0, 2.0), {"size": 2}),
+        (np.random.Generator.geometric, (0.35,), {"size": 2}),
+        (np.random.Generator.gumbel, (0.0, 0.1), {"size": 2}),
+        (np.random.Generator.hypergeometric, (100, 2, 10), {"size": 2}),
+        (np.random.Generator.laplace, (0.0, 1.0), {"size": 2}),
+        (np.random.Generator.logistic, (10, 1), {"size": 2}),
+        (np.random.Generator.lognormal, (3.0, 1.0), {"size": 2}),
+        (np.random.Generator.logseries, (0.6,), {"size": 2}),
+        (np.random.Generator.multinomial, (20, [1 / 6.0] * 6), {}),
+        (np.random.Generator.multivariate_normal, ([0, 0], [[1, 0], [0, 100]]), {}),
+        (np.random.Generator.negative_binomial, (1, 0.1), {"size": 2}),
+        (np.random.Generator.noncentral_chisquare, (3, 20), {"size": 2}),
+        (np.random.Generator.noncentral_f, (3, 20, 3.0), {"size": 2}),
+        (np.random.Generator.normal, (0, 0.1), {"size": 2}),
+        (np.random.Generator.pareto, (3.0,), {"size": 2}),
+        (np.random.Generator.poisson, (5,), {"size": 2}),
+        (np.random.Generator.power, (5.0,), {"size": 2}),
+        (np.random.Generator.rayleigh, (3,), {"size": 2}),
+        (np.random.Generator.standard_cauchy, (), {"size": 2}),
+        (np.random.Generator.standard_exponential, (), {"size": 2}),
+        (np.random.Generator.standard_gamma, (2.0,), {"size": 2}),
+        (np.random.Generator.standard_normal, (), {"size": 2}),
+        (np.random.Generator.standard_t, (10,), {"size": 2}),
+        (np.random.Generator.triangular, (-3, 0, 8), {"size": 2}),
+        (np.random.Generator.uniform, (-1, 0), {"size": 2}),
+        (np.random.Generator.vonmises, (0.0, 4.0), {"size": 2}),
+        (np.random.Generator.wald, (3, 2), {"size": 2}),
+        (np.random.Generator.weibull, (5.0,), {"size": 2}),
+        (np.random.Generator.zipf, (2.0,), {"size": 2}),
+    ],
+)
+def test_Generator(backend, method, args, kwargs):
+    backend, types = backend
+    try:
+        with ua.set_backend(backend, coerce=True):
+            rng = np.random.default_rng()
+            ret = method(rng, *args, **kwargs)
+    except ua.BackendNotImplementedError:
+        if backend in FULLY_TESTED_BACKENDS and (backend, method) not in EXCEPTIONS:
+            raise
+        pytest.xfail(reason="The backend has no implementation for this ufunc.")
+
+    if method is np.random.Generator.bytes:
+        assert isinstance(ret, bytes)
+    elif method is np.random.Generator.shuffle:
+        assert ret is None
+    else:
+        assert isinstance(ret, types)
+
+    if isinstance(ret, da.Array):
+        ret.compute()
+
+
+@pytest.mark.parametrize(
+    "method, args, kwargs",
+    [
         (
             np.apply_along_axis,
             (lambda a: (a[0] + a[-1]) * 0.5, 1, [[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
@@ -664,21 +827,31 @@ def test_class_overriding():
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(onp.random.RandomState(), np.random.RandomState)
+        assert isinstance(onp.random.Generator(onp.random.PCG64()), np.random.Generator)
         assert issubclass(onp.ufunc, np.ufunc)
+        assert issubclass(onp.random.RandomState, np.random.RandomState)
+        assert issubclass(onp.random.Generator, np.random.Generator)
 
     with ua.set_backend(DaskBackend(), coerce=True):
         assert isinstance(da.add, np.ufunc)
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(da.random.RandomState(), np.random.RandomState)
         assert issubclass(da.ufunc.ufunc, np.ufunc)
+        assert issubclass(da.random.RandomState, np.random.RandomState)
 
     with ua.set_backend(SparseBackend, coerce=True):
         assert isinstance(onp.add, np.ufunc)
         assert isinstance(onp.dtype("float64"), np.dtype)
         assert np.dtype("float64") == onp.float64
         assert isinstance(np.dtype("float64"), onp.dtype)
+        assert isinstance(onp.random.RandomState(), np.random.RandomState)
+        assert isinstance(onp.random.Generator(onp.random.PCG64()), np.random.Generator)
         assert issubclass(onp.ufunc, np.ufunc)
+        assert issubclass(onp.random.RandomState, np.random.RandomState)
+        assert issubclass(onp.random.Generator, np.random.Generator)
 
     if hasattr(CupyBackend, "__ua_function__"):
         with ua.set_backend(CupyBackend, coerce=True):
@@ -686,4 +859,6 @@ def test_class_overriding():
             assert isinstance(cp.dtype("float64"), np.dtype)
             assert np.dtype("float64") == cp.float64
             assert isinstance(np.dtype("float64"), cp.dtype)
+            assert isinstance(cp.random.RandomState(), np.random.RandomState)
             assert issubclass(cp.ufunc, np.ufunc)
+            assert issubclass(cp.random.RandomState, np.random.RandomState)
